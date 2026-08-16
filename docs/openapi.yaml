@@ -1,0 +1,449 @@
+openapi: 3.0.3
+
+info:
+  title: Event-Driven Notification Engine API
+  description: |
+    Internal API contracts for the Event-Driven Notification Engine.
+
+    The API provides event ingestion, notification status tracking,
+    user preference management, and operational interfaces.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:3000
+    description: Local development server
+
+tags:
+  - name: Events
+    description: Financial event ingestion
+  - name: Notifications
+    description: Notification status and tracking
+  - name: Preferences
+    description: User notification preferences
+  - name: Health
+    description: Service health
+
+paths:
+  /api/v1/events:
+    post:
+      tags:
+        - Events
+      summary: Ingest a financial event
+      description: |
+        Accepts a financial event for notification processing.
+        This is the primary entry point for event producers.
+      operationId: ingestEvent
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EventIngestionRequest"
+
+      responses:
+        "202":
+          description: Event accepted for asynchronous processing
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventAcceptedResponse"
+
+        "400":
+          description: Invalid event payload
+
+        "409":
+          description: Duplicate event
+
+        "401":
+          description: Authentication required
+
+        "429":
+          description: Rate limit exceeded
+
+        "500":
+          description: Internal server error
+
+  /api/v1/notifications/{notificationId}:
+    get:
+      tags:
+        - Notifications
+      summary: Get notification status
+      description: Returns the current status and delivery information for a notification.
+      operationId: getNotificationStatus
+
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          description: Unique notification identifier
+          schema:
+            type: string
+            example: ntf_98765432-abcd-1234-ef56-789012345678
+
+      responses:
+        "200":
+          description: Notification status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationStatus"
+
+        "404":
+          description: Notification not found
+
+        "401":
+          description: Authentication required
+
+        "500":
+          description: Internal server error
+
+  /api/v1/users/{userId}/preferences:
+    get:
+      tags:
+        - Preferences
+      summary: Get user notification preferences
+      operationId: getUserPreferences
+
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+
+      responses:
+        "200":
+          description: User notification preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPreferences"
+
+        "404":
+          description: User not found
+
+        "401":
+          description: Authentication required
+
+    put:
+      tags:
+        - Preferences
+      summary: Update user notification preferences
+      operationId: updateUserPreferences
+
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserPreferencesUpdate"
+
+      responses:
+        "200":
+          description: Preferences updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPreferences"
+
+        "400":
+          description: Invalid preference data
+
+        "404":
+          description: User not found
+
+        "401":
+          description: Authentication required
+
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Returns the health status of the notification engine.
+      operationId: healthCheck
+
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+        "503":
+          description: Service is unhealthy
+
+components:
+  parameters:
+    UserId:
+      name: userId
+      in: path
+      required: true
+      description: Unique user identifier
+      schema:
+        type: string
+        example: usr_a1b2c3d4-e5f6-7890-abcd-ef1234567890
+
+  schemas:
+    EventIngestionRequest:
+      type: object
+      required:
+        - event_type
+        - event_id
+        - source_system
+        - timestamp
+        - priority
+        - user_id
+        - payload
+        - idempotency_key
+
+      properties:
+        event_type:
+          type: string
+          description: Financial event type
+          example: RISK-001
+
+        event_id:
+          type: string
+          description: Unique event identifier
+          example: EVT-2025-03-19-MC-847291
+
+        source_system:
+          type: string
+          description: System that generated the event
+          example: margin_engine
+
+        timestamp:
+          type: string
+          format: date-time
+          example: 2025-03-19T10:15:23.456Z
+
+        priority:
+          type: integer
+          description: Notification priority
+          example: 1
+          minimum: 1
+          maximum: 5
+
+        user_id:
+          type: string
+          description: User associated with the event
+          example: usr_a1b2c3d4-e5f6-7890-abcd-ef1234567890
+
+        payload:
+          type: object
+          description: Event-specific payload
+          additionalProperties: true
+
+        idempotency_key:
+          type: string
+          description: Key used to prevent duplicate processing
+          example: margin-call-usr_a1b2c3d4-2025-03-19T10:15
+
+    EventAcceptedResponse:
+      type: object
+      required:
+        - event_id
+        - status
+        - correlation_id
+
+      properties:
+        event_id:
+          type: string
+          example: EVT-2025-03-19-MC-847291
+
+        status:
+          type: string
+          example: ACCEPTED
+
+        correlation_id:
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+
+    NotificationStatus:
+      type: object
+      required:
+        - notification_id
+        - event_type
+        - user_id
+        - channel
+        - priority
+        - status
+
+      properties:
+        notification_id:
+          type: string
+          example: ntf_98765432-abcd-1234-ef56-789012345678
+
+        event_type:
+          type: string
+          example: RISK-001
+
+        user_id:
+          type: string
+          example: usr_a1b2c3d4-e5f6-7890-abcd-ef1234567890
+
+        channel:
+          type: string
+          enum:
+            - sms
+            - email
+            - push
+            - whatsapp
+            - in_app
+          example: sms
+
+        priority:
+          type: integer
+          example: 1
+
+        status:
+          type: string
+          enum:
+            - CREATED
+            - ENRICHED
+            - ROUTED
+            - QUEUED
+            - SENT
+            - DELIVERED
+            - READ
+            - FAILED
+            - RETRYING
+            - DND
+            - CAPPED
+            - QUIET
+            - BOUNCED
+            - DLQ
+          example: DELIVERED
+
+        template_id:
+          type: string
+          example: RISK-001-v3
+
+        provider:
+          type: string
+          example: msg91
+
+        external_id:
+          type: string
+          nullable: true
+          example: msg91_5f6g7h8i9j0k
+
+        delivery_attempts:
+          type: integer
+          example: 1
+
+        correlation_id:
+          type: string
+          format: uuid
+          example: 550e8400-e29b-41d4-a716-446655440000
+
+    UserPreferences:
+      type: object
+      properties:
+        user_id:
+          type: string
+          example: usr_a1b2c3d4-e5f6-7890-abcd-ef1234567890
+
+        language:
+          type: string
+          example: en
+
+        timezone:
+          type: string
+          example: Asia/Kolkata
+
+        channels:
+          type: object
+          properties:
+            sms:
+              type: boolean
+              example: true
+            email:
+              type: boolean
+              example: true
+            push:
+              type: boolean
+              example: true
+            whatsapp:
+              type: boolean
+              example: false
+            in_app:
+              type: boolean
+              example: true
+
+        quiet_hours:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              example: true
+            start:
+              type: string
+              example: "22:00"
+            end:
+              type: string
+              example: "07:00"
+
+    UserPreferencesUpdate:
+      type: object
+      properties:
+        language:
+          type: string
+          example: en
+
+        timezone:
+          type: string
+          example: Asia/Kolkata
+
+        channels:
+          type: object
+          properties:
+            sms:
+              type: boolean
+            email:
+              type: boolean
+            push:
+              type: boolean
+            whatsapp:
+              type: boolean
+            in_app:
+              type: boolean
+
+        quiet_hours:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+            start:
+              type: string
+              example: "22:00"
+            end:
+              type: string
+              example: "07:00"
+
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+
+      properties:
+        status:
+          type: string
+          enum:
+            - healthy
+            - degraded
+            - unhealthy
+          example: healthy
+
+        timestamp:
+          type: string
+          format: date-time
+
+        services:
+          type: object
+          additionalProperties:
+            type: string

@@ -1,0 +1,189 @@
+version: "1.0"
+
+event_taxonomy:
+  transaction_events:
+    - event_type: TRANSACTION_EXECUTED
+      description: Transaction has been successfully executed.
+      priority: 2
+      category: transaction
+
+    - event_type: TRANSACTION_FAILED
+      description: Transaction execution has failed.
+      priority: 1
+      category: transaction
+
+    - event_type: ORDER_PLACED
+      description: An order has been placed.
+      priority: 2
+      category: transaction
+
+    - event_type: ORDER_CANCELLED
+      description: An order has been cancelled.
+      priority: 2
+      category: transaction
+
+    - event_type: PAYMENT_RECEIVED
+      description: Payment has been received.
+      priority: 2
+      category: transaction
+
+    - event_type: PAYMENT_FAILED
+      description: Payment processing has failed.
+      priority: 1
+      category: transaction
+
+    - event_type: WITHDRAWAL_COMPLETED
+      description: Withdrawal has been completed.
+      priority: 2
+      category: transaction
+
+    - event_type: WITHDRAWAL_FAILED
+      description: Withdrawal processing has failed.
+      priority: 1
+      category: transaction
+
+  investment_events:
+    - event_type: SIP_REMINDER
+      description: Scheduled SIP payment reminder.
+      priority: 3
+      category: investment
+
+    - event_type: SIP_EXECUTED
+      description: SIP transaction has been executed.
+      priority: 2
+      category: investment
+
+    - event_type: SIP_FAILED
+      description: SIP transaction has failed.
+      priority: 1
+      category: investment
+
+    - event_type: PORTFOLIO_UPDATE
+      description: User portfolio has been updated.
+      priority: 3
+      category: investment
+
+    - event_type: DIVIDEND_NOTIFICATION
+      description: Dividend-related notification.
+      priority: 3
+      category: investment
+
+    - event_type: MUTUAL_FUND_UPDATE
+      description: Mutual fund related update.
+      priority: 3
+      category: investment
+
+  market_events:
+    - event_type: PRICE_ALERT
+      description: A monitored asset price has crossed a configured threshold.
+      priority: 3
+      category: market
+
+    - event_type: MARKET_MOVEMENT
+      description: Significant market movement has occurred.
+      priority: 3
+      category: market
+
+    - event_type: WATCHLIST_ALERT
+      description: An asset on the user's watchlist has triggered an alert.
+      priority: 3
+      category: market
+
+    - event_type: CORPORATE_ACTION
+      description: Corporate action affecting an instrument.
+      priority: 2
+      category: market
+
+    - event_type: MARKET_OPEN
+      description: Market opening event.
+      priority: 4
+      category: market
+
+    - event_type: MARKET_CLOSE
+      description: Market closing event.
+      priority: 4
+      category: market
+
+  risk_events:
+    - event_type: MARGIN_CALL
+      description: User has received a margin call.
+      priority: 1
+      category: risk
+
+    - event_type: MARGIN_SHORTFALL
+      description: User has a margin shortfall.
+      priority: 1
+      category: risk
+
+    - event_type: POSITION_LIQUIDATION
+      description: A position is being liquidated.
+      priority: 1
+      category: risk
+
+    - event_type: RISK_THRESHOLD_BREACH
+      description: A configured risk threshold has been breached.
+      priority: 1
+      category: risk
+
+    - event_type: ACCOUNT_RESTRICTION
+      description: Account restrictions have been applied.
+      priority: 1
+      category: risk
+
+  regulatory_events:
+    - event_type: REGULATORY_NOTICE
+      description: Regulatory notice requiring user notification.
+      priority: 1
+      category: regulatory
+
+    - event_type: COMPLIANCE_NOTIFICATION
+      description: Compliance-related notification.
+      priority: 1
+      category: regulatory
+
+    - event_type: KYC_NOTIFICATION
+      description: KYC-related notification.
+      priority: 2
+      category: regulatory
+
+    - event_type: ACCOUNT_VERIFICATION
+      description: Account verification notification.
+      priority: 2
+      category: regulatory
+
+  account_events:
+    - event_type: ACCOUNT_CREATED
+      description: User account has been created.
+      priority: 3
+      category: account
+
+    - event_type: ACCOUNT_UPDATED
+      description: User account information has been updated.
+      priority: 3
+      category: account
+
+    - event_type: ACCOUNT_SUSPENDED
+      description: User account has been suspended.
+      priority: 1
+      category: account
+
+priority_levels:
+  1:
+    name: CRITICAL
+    description: Immediate processing required.
+
+  2:
+    name: HIGH
+    description: High-priority notification.
+
+  3:
+    name: NORMAL
+    description: Standard notification.
+
+  4:
+    name: LOW
+    description: Lower-priority notification.
+
+  5:
+    name: VERY_LOW
+    description: Lowest processing priority.
