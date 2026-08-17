@@ -2,170 +2,159 @@ version: "1.0"
 
 event_taxonomy:
   transaction_events:
-    - event_type: TRANSACTION_EXECUTED
-      description: Transaction has been successfully executed.
+    - event_type: TXNX-001
+      name: BUY_ORDER_EXECUTED
+      description: Buy order has been successfully executed.
       priority: 2
       category: transaction
 
-    - event_type: TRANSACTION_FAILED
-      description: Transaction execution has failed.
+    - event_type: TXNX-002
+      name: SELL_ORDER_EXECUTED
+      description: Sell order has been successfully executed.
+      priority: 2
+      category: transaction
+
+    - event_type: TXNX-003
+      name: ORDER_REJECTED
+      description: Order has been rejected.
       priority: 1
       category: transaction
 
-    - event_type: ORDER_PLACED
-      description: An order has been placed.
+    - event_type: TXNX-004
+      name: DIVIDEND_CREDITED
+      description: Dividend has been credited.
       priority: 2
       category: transaction
 
-    - event_type: ORDER_CANCELLED
-      description: An order has been cancelled.
+    - event_type: TXNX-005
+      name: FUNDS_DEPOSITED
+      description: Funds have been deposited into the user's account.
       priority: 2
       category: transaction
 
-    - event_type: PAYMENT_RECEIVED
-      description: Payment has been received.
-      priority: 2
-      category: transaction
-
-    - event_type: PAYMENT_FAILED
-      description: Payment processing has failed.
+  risk_margin_events:
+    - event_type: RISK-001
+      name: MARGIN_CALL_WARNING
+      description: User has received a margin call warning.
       priority: 1
-      category: transaction
+      category: risk_margin
 
-    - event_type: WITHDRAWAL_COMPLETED
-      description: Withdrawal has been completed.
-      priority: 2
-      category: transaction
-
-    - event_type: WITHDRAWAL_FAILED
-      description: Withdrawal processing has failed.
-      priority: 1
-      category: transaction
-
-  investment_events:
-    - event_type: SIP_REMINDER
-      description: Scheduled SIP payment reminder.
-      priority: 3
-      category: investment
-
-    - event_type: SIP_EXECUTED
-      description: SIP transaction has been executed.
-      priority: 2
-      category: investment
-
-    - event_type: SIP_FAILED
-      description: SIP transaction has failed.
-      priority: 1
-      category: investment
-
-    - event_type: PORTFOLIO_UPDATE
-      description: User portfolio has been updated.
-      priority: 3
-      category: investment
-
-    - event_type: DIVIDEND_NOTIFICATION
-      description: Dividend-related notification.
-      priority: 3
-      category: investment
-
-    - event_type: MUTUAL_FUND_UPDATE
-      description: Mutual fund related update.
-      priority: 3
-      category: investment
-
-  market_events:
-    - event_type: PRICE_ALERT
-      description: A monitored asset price has crossed a configured threshold.
-      priority: 3
-      category: market
-
-    - event_type: MARKET_MOVEMENT
-      description: Significant market movement has occurred.
-      priority: 3
-      category: market
-
-    - event_type: WATCHLIST_ALERT
-      description: An asset on the user's watchlist has triggered an alert.
-      priority: 3
-      category: market
-
-    - event_type: CORPORATE_ACTION
-      description: Corporate action affecting an instrument.
-      priority: 2
-      category: market
-
-    - event_type: MARKET_OPEN
-      description: Market opening event.
-      priority: 4
-      category: market
-
-    - event_type: MARKET_CLOSE
-      description: Market closing event.
-      priority: 4
-      category: market
-
-  risk_events:
-    - event_type: MARGIN_CALL
-      description: User has received a margin call.
-      priority: 1
-      category: risk
-
-    - event_type: MARGIN_SHORTFALL
+    - event_type: RISK-002
+      name: MARGIN_SHORTFALL
       description: User has a margin shortfall.
       priority: 1
-      category: risk
+      category: risk_margin
 
-    - event_type: POSITION_LIQUIDATION
-      description: A position is being liquidated.
+    - event_type: RISK-003
+      name: POSITION_SQUARED_OFF
+      description: Positions have been squared off.
       priority: 1
-      category: risk
+      category: risk_margin
 
-    - event_type: RISK_THRESHOLD_BREACH
-      description: A configured risk threshold has been breached.
+    - event_type: RISK-004
+      name: PORTFOLIO_RISK_ALERT
+      description: Portfolio risk threshold has been breached.
       priority: 1
-      category: risk
+      category: risk_margin
 
-    - event_type: ACCOUNT_RESTRICTION
-      description: Account restrictions have been applied.
+    - event_type: RISK-005
+      name: CONCENTRATION_ALERT
+      description: Portfolio concentration risk has been detected.
       priority: 1
-      category: risk
+      category: risk_margin
 
-  regulatory_events:
-    - event_type: REGULATORY_NOTICE
-      description: Regulatory notice requiring user notification.
-      priority: 1
-      category: regulatory
-
-    - event_type: COMPLIANCE_NOTIFICATION
-      description: Compliance-related notification.
-      priority: 1
-      category: regulatory
-
-    - event_type: KYC_NOTIFICATION
-      description: KYC-related notification.
-      priority: 2
-      category: regulatory
-
-    - event_type: ACCOUNT_VERIFICATION
-      description: Account verification notification.
-      priority: 2
-      category: regulatory
-
-  account_events:
-    - event_type: ACCOUNT_CREATED
-      description: User account has been created.
+  sip_investment_events:
+    - event_type: SIPX-001
+      name: SIP_DUE_REMINDER
+      description: SIP payment is due.
       priority: 3
-      category: account
+      category: sip_investment
 
-    - event_type: ACCOUNT_UPDATED
-      description: User account information has been updated.
-      priority: 3
-      category: account
+    - event_type: SIPX-002
+      name: SIP_EXECUTED
+      description: SIP transaction has been executed.
+      priority: 2
+      category: sip_investment
 
-    - event_type: ACCOUNT_SUSPENDED
-      description: User account has been suspended.
+    - event_type: SIPX-003
+      name: SIP_FAILED
+      description: SIP transaction has failed.
       priority: 1
-      category: account
+      category: sip_investment
+
+    - event_type: SIPX-004
+      name: SIP_STEP_UP_REMINDER
+      description: SIP step-up reminder.
+      priority: 3
+      category: sip_investment
+
+    - event_type: SIPX-005
+      name: GOAL_MILESTONE_REACHED
+      description: Investment goal milestone has been reached.
+      priority: 3
+      category: sip_investment
+
+  market_price_events:
+    - event_type: MKTX-001
+      name: PRICE_ALERT_TRIGGERED
+      description: Monitored asset price has crossed a configured threshold.
+      priority: 3
+      category: market_price
+
+    - event_type: MKTX-002
+      name: CIRCUIT_BREAKER_HIT
+      description: Circuit breaker has been triggered for an instrument.
+      priority: 1
+      category: market_price
+
+    - event_type: MKTX-003
+      name: MARKET_OPEN_CLOSE
+      description: Market open or close event.
+      priority: 4
+      category: market_price
+
+    - event_type: MKTX-004
+      name: FIFTY_TWO_WEEK_HIGH_LOW
+      description: Instrument has reached a 52-week high or low.
+      priority: 3
+      category: market_price
+
+    - event_type: MKTX-005
+      name: EARNINGS_ANNOUNCEMENT
+      description: Earnings announcement has been published.
+      priority: 3
+      category: market_price
+
+  regulatory_compliance_events:
+    - event_type: REGX-001
+      name: KYC_EXPIRY_WARNING
+      description: User KYC is approaching expiry.
+      priority: 2
+      category: regulatory_compliance
+
+    - event_type: REGX-002
+      name: NOMINEE_UPDATE_REMINDER
+      description: User needs to update nominee information.
+      priority: 2
+      category: regulatory_compliance
+
+    - event_type: REGX-003
+      name: CONTRACT_NOTE_GENERATED
+      description: Contract note has been generated.
+      priority: 2
+      category: regulatory_compliance
+
+    - event_type: REGX-004
+      name: TAX_STATEMENT_AVAILABLE
+      description: Tax statement is available.
+      priority: 2
+      category: regulatory_compliance
+
+    - event_type: REGX-005
+      name: REGULATORY_POLICY_CHANGE
+      description: Regulatory policy affecting the user has changed.
+      priority: 1
+      category: regulatory_compliance
 
 priority_levels:
   1:
