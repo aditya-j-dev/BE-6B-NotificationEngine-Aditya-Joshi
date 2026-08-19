@@ -1,10 +1,153 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider        = "prisma-client"
+  output          = "../src/generated/prisma"
+  previewFeatures = ["partialIndexes"]
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+model User {
+  id             String           @id @default(uuid()) @db.Uuid
+  phone          String           @unique
+  email          String           @unique
+  name           String?
+  language       String           @default("en")
+  timezone       String           @default("Asia/Kolkata")
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+  consentRecords ConsentRecord[]
+  notifications  Notification[]
+  preferences    UserPreference[]
+}
+
+model Notification {
+  id                  String                 @default(uuid()) @db.Uuid
+  createdAt           DateTime               @default(now())
+  eventType           String                 @db.VarChar(30)
+  eventId             String                 @db.VarChar(50)
+  userId              String                 @db.Uuid
+  channel             NotificationChannel
+  priority            Int                    @default(5)
+  status              NotificationStatus     @default(CREATED)
+  templateId          String                 @db.VarChar(50)
+  templateVersion     Int
+  personalizationData Json
+  renderedContent     Json?
+  provider            String?                @db.VarChar(30)
+  externalId          String?                @db.VarChar(100)
+  deliveryAttempts    Int                    @default(0)
+  maxRetries          Int                    @default(3)
+  nextRetryAt         DateTime?
+  deliveredAt         DateTime?
+  readAt              DateTime?
+  failedReason        String?
+  costPaisa           Int?
+  metadata            Json?
+  updatedAt           DateTime               @updatedAt
+  deliveryProviderId  String?                @db.Uuid
+  deadLetterEntries   DeadLetterQueue[]
+  deliveryProvider    DeliveryProvider?      @relation(fields: [deliveryProviderId], references: [id])
+  user                User                   @relation(fields: [userId], references: [id])
+  stateLogs           NotificationStateLog[]
+
+  @@id([id, createdAt])
+  @@index([status], map: "Notification_queued_retrying_status_idx", where: raw("(status = ANY (ARRAY['QUEUED'::\"NotificationStatus\", 'RETRYING'::\"NotificationStatus\"]))"))
+}
+
+model NotificationStateLog {
+  id                    BigInt              @id @default(autoincrement())
+  notificationId        String              @db.Uuid
+  notificationCreatedAt DateTime
+  fromStatus            NotificationStatus?
+  toStatus              NotificationStatus
+  actor                 String              @db.VarChar(50)
+  metadata              Json?
+  createdAt             DateTime            @default(now())
+  notification          Notification        @relation(fields: [notificationId, notificationCreatedAt], references: [id, createdAt])
+
+  @@index([notificationId])
+  @@index([createdAt])
+}
+
+model DeadLetterQueue {
+  id                    String       @id @default(uuid()) @db.Uuid
+  notificationId        String       @db.Uuid
+  notificationCreatedAt DateTime
+  originalEvent         Json
+  failureReason         String
+  retryCount            Int
+  lastError             String?
+  resolved              Boolean      @default(false)
+  resolvedBy            String?      @db.VarChar(50)
+  resolvedAt            DateTime?
+  resolutionAction      String?      @db.VarChar(50)
+  createdAt             DateTime     @default(now())
+  notification          Notification @relation(fields: [notificationId, notificationCreatedAt], references: [id, createdAt])
+}
+
+model UserPreference {
+  userId             String              @db.Uuid
+  eventCategory      String              @db.VarChar(30)
+  eventType          String              @default("*") @db.VarChar(50)
+  channel            NotificationChannel
+  enabled            Boolean             @default(true)
+  quietHoursOverride Boolean             @default(false)
+  digestMode         String              @default("immediate") @db.VarChar(20)
+  priorityOverride   Int?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  user               User                @relation(fields: [userId], references: [id])
+
+  @@id([userId, eventCategory, eventType, channel])
+}
+
+model Template {
+  id          String              @id @default(uuid()) @db.Uuid
+  templateKey String
+  eventType   String
+  channel     NotificationChannel
+  language    String              @default("en")
+  version     Int
+  content     String
+  active      Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  @@unique([templateKey, channel, language, version])
+  @@index([eventType, channel, language])
+}
+
+model DeliveryProvider {
+  id              String          @id @default(uuid()) @db.Uuid
+  name            String
+  channel         ProviderChannel
+  endpoint        String?
+  active          Boolean         @default(true)
+  rateLimitPerSec Int?
+  priority        Int             @default(1)
+  metadata        Json?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  notifications   Notification[]
+
+  @@index([channel, active, priority])
+}
+
+model ConsentRecord {
+  id          String      @id @default(uuid()) @db.Uuid
+  userId      String      @db.Uuid
+  consentType ConsentType
+  granted     Boolean     @default(false)
+  source      String?
+  grantedAt   DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  user        User        @relation(fields: [userId], references: [id])
+
+  @@index([userId, consentType])
 }
 
 enum NotificationStatus {
@@ -44,172 +187,4 @@ enum ProviderChannel {
   PUSH
   WHATSAPP
   IN_APP
-}
-
-model User {
-  id        String   @id @default(uuid()) @db.Uuid
-  phone     String   @unique
-  email     String   @unique
-  name      String?
-  language  String   @default("en")
-  timezone  String   @default("Asia/Kolkata")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  notifications  Notification[]
-  preferences    UserPreference[]
-  consentRecords ConsentRecord[]
-}
-
-model Notification {
-  id        String   @default(uuid()) @db.Uuid
-  createdAt DateTime @default(now())
-
-  eventType String              @db.VarChar(30)
-  eventId   String              @db.VarChar(50)
-  userId    String              @db.Uuid
-  channel   NotificationChannel
-  priority  Int                 @default(5)
-  status    NotificationStatus  @default(CREATED)
-
-  templateId      String @db.VarChar(50)
-  templateVersion Int
-
-  personalizationData Json
-  renderedContent     Json?
-
-  provider   String? @db.VarChar(30)
-  externalId String? @db.VarChar(100)
-
-  deliveryAttempts Int       @default(0)
-  maxRetries       Int       @default(3)
-  nextRetryAt      DateTime?
-
-  deliveredAt  DateTime?
-  readAt       DateTime?
-  failedReason String?
-
-  costPaisa Int?
-  metadata  Json?
-
-  updatedAt DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id])
-
-  stateLogs          NotificationStateLog[]
-  deadLetterEntries  DeadLetterQueue[]
-  deliveryProvider   DeliveryProvider?      @relation(fields: [deliveryProviderId], references: [id])
-  deliveryProviderId String?                @db.Uuid
-
-  @@id([id, createdAt])
-}
-
-model NotificationStateLog {
-  id                    BigInt   @id @default(autoincrement())
-  notificationId        String   @db.Uuid
-  notificationCreatedAt DateTime
-
-  fromStatus NotificationStatus?
-  toStatus   NotificationStatus
-  actor      String              @db.VarChar(50)
-  metadata   Json?
-  createdAt  DateTime            @default(now())
-
-  notification Notification @relation(fields: [notificationId, notificationCreatedAt], references: [id, createdAt])
-
-  @@index([notificationId])
-  @@index([createdAt])
-}
-
-model DeadLetterQueue {
-  id String @id @default(uuid()) @db.Uuid
-
-  notificationId        String   @db.Uuid
-  notificationCreatedAt DateTime
-
-  originalEvent Json
-  failureReason String
-  retryCount    Int
-  lastError     String?
-
-  resolved         Boolean   @default(false)
-  resolvedBy       String?   @db.VarChar(50)
-  resolvedAt       DateTime?
-  resolutionAction String?   @db.VarChar(50)
-
-  createdAt DateTime @default(now())
-
-  notification Notification @relation(fields: [notificationId, notificationCreatedAt], references: [id, createdAt])
-}
-
-model UserPreference {
-  userId        String              @db.Uuid
-  eventCategory String              @db.VarChar(30)
-  eventType     String              @default("*") @db.VarChar(50)
-  channel       NotificationChannel
-
-  enabled            Boolean @default(true)
-  quietHoursOverride Boolean @default(false)
-  digestMode         String  @default("immediate") @db.VarChar(20)
-  priorityOverride   Int?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user User @relation(fields: [userId], references: [id])
-
-  @@id([userId, eventCategory, eventType, channel])
-}
-
-model Template {
-  id          String              @id @default(uuid()) @db.Uuid
-  templateKey String
-  eventType   String
-  channel     NotificationChannel
-  language    String              @default("en")
-  version     Int
-  content     String
-  active      Boolean             @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([templateKey, channel, language, version])
-  @@index([eventType, channel, language])
-}
-
-model DeliveryProvider {
-  id       String          @id @default(uuid()) @db.Uuid
-  name     String
-  channel  ProviderChannel
-  endpoint String?
-  active   Boolean         @default(true)
-
-  rateLimitPerSec Int?
-  priority        Int  @default(1)
-
-  metadata Json?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  notifications Notification[]
-
-  @@index([channel, active, priority])
-}
-
-model ConsentRecord {
-  id          String      @id @default(uuid()) @db.Uuid
-  userId      String      @db.Uuid
-  consentType ConsentType
-  granted     Boolean     @default(false)
-  source      String?
-  grantedAt   DateTime?
-  revokedAt   DateTime?
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
-
-  user User @relation(fields: [userId], references: [id])
-
-  @@index([userId, consentType])
 }

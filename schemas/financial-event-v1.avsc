@@ -1,0 +1,104 @@
+{
+  "type": "record",
+  "name": "FinancialEvent",
+  "namespace": "notification.engine.v1",
+  "fields": [
+    {
+      "name": "eventId",
+      "type": "string"
+    },
+    {
+      "name": "eventType",
+      "type": {
+        "type": "enum",
+        "name": "EventType",
+        "symbols": [
+  "TXNX_001",
+  "TXNX_002",
+  "TXNX_003",
+  "TXNX_004",
+  "TXNX_005",
+  "RISK_001",
+  "RISK_002",
+  "RISK_003",
+  "RISK_004",
+  "RISK_005",
+  "SIPX_001",
+  "SIPX_002",
+  "SIPX_003",
+  "SIPX_004",
+  "SIPX_005",
+  "MKTX_001",
+  "MKTX_002",
+  "MKTX_003",
+  "MKTX_004",
+  "MKTX_005",
+  "REGX_001",
+  "REGX_002",
+  "REGX_003",
+  "REGX_004",
+  "REGX_005"
+]
+      }
+    },
+    {
+      "name": "eventCategory",
+      "type": {
+        "type": "enum",
+        "name": "EventCategory",
+        "symbols": [
+          "transaction",
+          "risk_margin",
+          "sip_investment",
+          "market_price",
+          "regulatory_compliance"
+        ]
+      }
+    },
+    {
+      "name": "userId",
+      "type": "string"
+    },
+    {
+      "name": "occurredAt",
+      "type": "string"
+    },
+    {
+      "name": "correlationId",
+      "type": "string"
+    },
+    {
+      "name": "source",
+      "type": "string"
+    },
+    {
+      "name": "priority",
+      "type": {
+        "type": "enum",
+        "name": "EventPriority",
+        "symbols": [
+          "CRITICAL",
+          "HIGH",
+          "NORMAL",
+          "LOW",
+          "VERY_LOW"
+        ]
+      }
+    },
+    {
+      "name": "payload",
+      "type": "string"
+    },
+    {
+      "name": "metadata",
+      "type": [
+        "null",
+        {
+          "type": "map",
+          "values": "string"
+        }
+      ],
+      "default": null
+    }
+  ]
+}

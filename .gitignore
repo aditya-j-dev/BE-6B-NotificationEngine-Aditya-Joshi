@@ -41,3 +41,8 @@ temp/
 # Docker
 docker-compose.override.yml
 /src/generated/prisma
+
+.windsurf
+.agents
+.claude
+skills-lock.json
