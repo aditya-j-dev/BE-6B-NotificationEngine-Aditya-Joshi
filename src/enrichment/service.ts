@@ -5,6 +5,8 @@ import type { FinancialEvent } from "../events/types";
 
 import {
     EVENT_CHANNEL_POLICY,
+    SEGMENT_CHANNEL_OVERRIDES,
+    type UserSegment,
 } from "./channel-policy";
 
 import type {
@@ -32,8 +34,14 @@ export class EventEnrichmentService {
                 },
             });
 
+        const performance =
+            await this.prisma.userChannelPerformance?.findMany({
+                where: { userId: event.userId },
+            }) ?? [];
+
         const channels = this.resolveChannels(
             event,
+            user.segment,
             preferences,
         );
 
@@ -41,6 +49,15 @@ export class EventEnrichmentService {
             event,
             user,
             channels,
+            channelPerformance: Object.fromEntries(
+                performance.map((metric) => [
+                    metric.channel,
+                    {
+                        deliveryRate: metric.deliveryRate,
+                        averageLatencyMs: metric.averageLatencyMs,
+                    },
+                ]),
+            ),
         };
     }
 
@@ -58,6 +75,7 @@ export class EventEnrichmentService {
                 name: true,
                 language: true,
                 timezone: true,
+                segment: true,
             },
         });
 
@@ -67,11 +85,28 @@ export class EventEnrichmentService {
             );
         }
 
-        return user;
+        return {
+            ...user,
+            segment: this.isUserSegment(user.segment)
+                ? user.segment
+                : "STANDARD",
+        };
+    }
+
+    private isUserSegment(
+        value: string,
+    ): value is UserSegment {
+        return [
+            "STANDARD",
+            "PREMIUM",
+            "ACTIVE_TRADER",
+            "PASSIVE_INVESTOR",
+        ].includes(value);
     }
 
     private resolveChannels(
         event: FinancialEvent,
+        segment: UserSegment,
         preferences: Array<{
             eventCategory: string;
             eventType: string;
@@ -95,13 +130,14 @@ export class EventEnrichmentService {
         const systemChannels =
             new Set(policy.defaultChannels);
 
-        /*
-         * Layer 2:
-         * Segment overrides.
-         *
-         * No segment model currently exists in the database,
-         * so this layer intentionally has no overrides.
-         */
+        const segmentChannels =
+            SEGMENT_CHANNEL_OVERRIDES[segment]?.[
+                event.eventCategory
+            ] ?? [];
+
+        for (const channel of segmentChannels) {
+            systemChannels.add(channel);
+        }
 
         /*
          * Layer 3:
@@ -144,7 +180,9 @@ export class EventEnrichmentService {
             if (!preference) {
                 resolved.set(channel, {
                     channel,
-                    source: "SYSTEM_DEFAULT",
+                    source: segmentChannels.includes(channel)
+                        ? "SEGMENT_OVERRIDE"
+                        : "SYSTEM_DEFAULT",
                     mandatory: false,
                 });
 

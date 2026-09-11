@@ -15,6 +15,7 @@ function createBaseEvent(
 ) {
     return {
         eventId: randomUUID(),
+        idempotencyKey: randomUUID(),
         eventType,
         eventCategory,
         userId: randomUUID(),

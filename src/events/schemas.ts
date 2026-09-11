@@ -22,6 +22,7 @@ export const EventCategorySchema = z.enum([
 
 const BaseEventSchema = z.object({
     eventId: z.string().min(1),
+    idempotencyKey: z.string().min(1).optional(),
     eventType: z.string().min(1),
     eventCategory: EventCategorySchema,
     userId: z.string().min(1),

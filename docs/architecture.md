@@ -128,72 +128,32 @@ The Container diagram shows the major deployable/runtime components of the notif
 
 ```mermaid
 flowchart TB
-
-    KafkaConsumer["Kafka Consumer"]
-
-    Validator["Event Validator"]
-
-    Enricher["Event Enricher"]
-
-    PreferenceResolver["Preference Resolver"]
-
-    Qualification["Notification Qualification"]
-
-    Frequency["Frequency Cap Manager"]
-
-    QuietHours["Quiet Hours Manager"]
-
-    Template["Template Engine"]
-
-    Personalisation["Personalisation Engine"]
-
-    Compliance["Compliance Manager"]
-
-    Router["Channel Routing Engine"]
-
-    ProviderSelector["Provider Selector"]
-
-    Dedup["Idempotency / Deduplication"]
-
-    RabbitPublisher["RabbitMQ Publisher"]
-
-    Redis[("Redis")]
-
-    PostgreSQL[("PostgreSQL")]
-
-    KafkaConsumer --> Validator
-    Validator --> Enricher
-
-    Enricher --> PreferenceResolver
-
-    PreferenceResolver --> Redis
-    PreferenceResolver --> PostgreSQL
-
-    PreferenceResolver --> Qualification
-
-    Qualification --> Frequency
-    Frequency --> Redis
-
-    Frequency --> QuietHours
-    QuietHours --> Qualification
-
-    Qualification --> Personalisation
-    Personalisation --> Template
-
-    Template --> Compliance
-
-    Compliance --> Router
-
-    Router --> ProviderSelector
-    Router --> Dedup
-
-    Dedup --> Redis
-
-    ProviderSelector --> RabbitPublisher
-
-    RabbitPublisher --> PostgreSQL
+    Producers["Financial Event Producers"] --> Kafka[("Kafka")]
+    Kafka --> Application["ZeTheta Event Processing Service\nNode.js + TypeScript"]
+    Application --> PostgreSQL[("PostgreSQL")]
+    Application --> Redis[("Redis")]
+    Application --> RabbitMQ[("RabbitMQ")]
+    RabbitMQ --> Workers["Delivery Workers\n(planned)"]
+    Workers --> Providers["SMS / Email / Push / WhatsApp / In-App Providers"]
 ```
-## 6. Component Responsibilities
+
+## 4. C4 Component Diagram
+
+The component diagram details the implemented Day 3 processing path inside the ZeTheta Event Processing Service.
+
+```mermaid
+flowchart LR
+    Consumer["Kafka Consumer"] --> Avro["Avro Decoder"]
+    Avro --> Validator["Zod Event Validator"]
+    Validator --> Pipeline["Notification Pipeline"]
+    Pipeline --> Dedup["Redis Deduplication Service"]
+    Dedup --> Enricher["Event Enrichment Service"]
+    Enricher --> UserStore[("User & Preference Store")]
+    Enricher --> Router["Event Routing Service"]
+    Router --> Decision["Routing Decision"]
+```
+
+## 5. Component Responsibilities
 
 ### Kafka Consumer
 

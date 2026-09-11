@@ -15,11 +15,24 @@ model User {
   name           String?
   language       String           @default("en")
   timezone       String           @default("Asia/Kolkata")
+  segment        String           @default("STANDARD")
   createdAt      DateTime         @default(now())
   updatedAt      DateTime         @updatedAt
   consentRecords ConsentRecord[]
   notifications  Notification[]
   preferences    UserPreference[]
+  channelPerformance UserChannelPerformance[]
+}
+
+model UserChannelPerformance {
+  userId           String              @db.Uuid
+  channel          NotificationChannel
+  deliveryRate     Float               @default(0.5)
+  averageLatencyMs Int                 @default(1000)
+  updatedAt        DateTime            @updatedAt
+  user             User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, channel])
 }
 
 model Notification {
@@ -53,6 +66,8 @@ model Notification {
   stateLogs           NotificationStateLog[]
 
   @@id([id, createdAt])
+  @@index([userId, status, channel], map: "Notification_userId_status_channel_idx")
+  @@index([eventType, createdAt], map: "Notification_eventType_createdAt_idx")
   @@index([status], map: "Notification_queued_retrying_status_idx", where: raw("(status = ANY (ARRAY['QUEUED'::\"NotificationStatus\", 'RETRYING'::\"NotificationStatus\"]))"))
 }
 
@@ -110,6 +125,9 @@ model Template {
   channel     NotificationChannel
   language    String              @default("en")
   version     Int
+  experimentKey String?
+  variant       String?
+  variantWeight Int                 @default(100)
   content     String
   active      Boolean             @default(true)
   createdAt   DateTime            @default(now())

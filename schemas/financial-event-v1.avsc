@@ -8,6 +8,11 @@
       "type": "string"
     },
     {
+      "name": "idempotencyKey",
+      "type": ["null", "string"],
+      "default": null
+    },
+    {
       "name": "eventType",
       "type": {
         "type": "enum",

@@ -30,6 +30,7 @@ export function serializeEvent(event: FinancialEvent): Buffer {
     const {
         metadata,
         eventId,
+        idempotencyKey,
         eventType,
         eventCategory,
         userId,
@@ -42,6 +43,7 @@ export function serializeEvent(event: FinancialEvent): Buffer {
 
     const avroEvent = {
         eventId,
+        idempotencyKey: idempotencyKey ?? null,
         eventType: toAvroEventType(eventType),
         eventCategory,
         userId,
@@ -68,6 +70,7 @@ export function deserializeEvent(
 ): FinancialEvent {
     const decoded = FinancialEventAvroSchema.fromBuffer(buffer) as {
         eventId: string;
+        idempotencyKey: string | null;
         eventType: string;
         eventCategory: string;
         userId: string;
@@ -83,6 +86,9 @@ export function deserializeEvent(
 
     return {
         eventId: decoded.eventId,
+        ...(decoded.idempotencyKey
+            ? { idempotencyKey: decoded.idempotencyKey }
+            : {}),
         eventType: fromAvroEventType(decoded.eventType),
         eventCategory: decoded.eventCategory as FinancialEvent["eventCategory"],
         userId: decoded.userId,

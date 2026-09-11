@@ -11,28 +11,8 @@ export class EventRoutingService {
         const routes: RoutedChannel[] =
             [...enrichedEvent.channels]
                 .sort((a, b) => {
-                    /*
-                     * Routing precedence for Day 3:
-                     *
-                     * 1. Regulatory override
-                     * 2. Explicit user preference
-                     * 3. System default
-                     *
-                     * This reflects the decision hierarchy
-                     * without implementing the later weighted
-                     * scoring model.
-                     */
-                    const precedence = {
-                        REGULATORY_OVERRIDE: 0,
-                        USER_PREFERENCE: 1,
-                        SEGMENT_OVERRIDE: 2,
-                        SYSTEM_DEFAULT: 3,
-                    } as const;
-
-                    return (
-                        precedence[a.source] -
-                        precedence[b.source]
-                    );
+                    return this.scoreChannel(b, enrichedEvent) -
+                        this.scoreChannel(a, enrichedEvent);
                 })
                 .map((resolvedChannel) => ({
                     channel:
@@ -43,6 +23,11 @@ export class EventRoutingService {
 
                     mandatory:
                         resolvedChannel.mandatory,
+
+                    score: this.scoreChannel(
+                        resolvedChannel,
+                        enrichedEvent,
+                    ),
 
                     source:
                         resolvedChannel.source,
@@ -71,5 +56,34 @@ export class EventRoutingService {
 
             enrichedEvent,
         };
+    }
+
+    private scoreChannel(
+        channel: EnrichedEvent["channels"][number],
+        enrichedEvent: EnrichedEvent,
+    ): number {
+        const performance = enrichedEvent.channelPerformance?.[
+            channel.channel
+        ] ?? { deliveryRate: 0.5, averageLatencyMs: 1000 };
+
+        const sourceBonus = {
+            SYSTEM_DEFAULT: 0,
+            SEGMENT_OVERRIDE: 15,
+            USER_PREFERENCE: 30,
+            REGULATORY_OVERRIDE: 1000,
+        } as const;
+
+        const costPenalty = {
+            SMS: 20,
+            EMAIL: 4,
+            PUSH: 0,
+            WHATSAPP: 55,
+            IN_APP: 0,
+        } as const;
+
+        return sourceBonus[channel.source] +
+            (performance.deliveryRate * 100) -
+            Math.min(performance.averageLatencyMs / 100, 25) -
+            costPenalty[channel.channel];
     }
 }

@@ -1,4 +1,5 @@
 import { NotificationChannel } from "../generated/prisma/enums";
+import type { EventCategory } from "../events/types";
 
 interface EventChannelPolicy {
     defaultChannels: NotificationChannel[];
@@ -10,6 +11,31 @@ const EMAIL = "EMAIL" as NotificationChannel;
 const PUSH = "PUSH" as NotificationChannel;
 const WHATSAPP = "WHATSAPP" as NotificationChannel;
 const IN_APP = "IN_APP" as NotificationChannel;
+
+export type UserSegment =
+    | "STANDARD"
+    | "PREMIUM"
+    | "ACTIVE_TRADER"
+    | "PASSIVE_INVESTOR";
+
+export const SEGMENT_CHANNEL_OVERRIDES: Record<
+    UserSegment,
+    Partial<Record<EventCategory, NotificationChannel[]>>
+> = {
+    STANDARD: {},
+    PREMIUM: {
+        transaction: [WHATSAPP],
+        risk_margin: [WHATSAPP],
+    },
+    ACTIVE_TRADER: {
+        market_price: [PUSH, SMS],
+        risk_margin: [PUSH, SMS, EMAIL],
+    },
+    PASSIVE_INVESTOR: {
+        sip_investment: [EMAIL, IN_APP],
+        regulatory_compliance: [EMAIL, IN_APP],
+    },
+};
 
 export const EVENT_CHANNEL_POLICY: Record<
     string,

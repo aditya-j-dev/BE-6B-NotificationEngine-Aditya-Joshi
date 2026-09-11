@@ -126,7 +126,10 @@ export async function startConsumer() {
     await consumer.connect();
 
     await consumer.subscribe({
-        topic: "notification-events",
+        topics: [
+            "notification-events",
+            "notification-critical",
+        ],
         fromBeginning: true,
     });
 

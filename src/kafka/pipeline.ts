@@ -36,7 +36,7 @@ export class NotificationPipeline {
          */
         const duplicate =
             await this.deduplication.isDuplicate(
-                event.eventId,
+                event.idempotencyKey ?? event.eventId,
             );
 
         if (duplicate) {

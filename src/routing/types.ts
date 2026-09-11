@@ -6,6 +6,7 @@ export interface RoutedChannel {
     channel: NotificationChannel;
     priority: EventPriority;
     mandatory: boolean;
+    score: number;
     source:
     | "SYSTEM_DEFAULT"
     | "SEGMENT_OVERRIDE"

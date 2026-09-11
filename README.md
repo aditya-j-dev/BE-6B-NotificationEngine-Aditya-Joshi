@@ -8,7 +8,7 @@ notifications through SMS, email, push notifications, WhatsApp, and in-app chann
 
 ## Project Overview
 
-This project implements a resilient multi-channel notification platform with:
+This project is being built as a resilient multi-channel notification platform with:
 
 - Event-driven architecture
 - Kafka-based event ingestion and streaming
@@ -29,14 +29,14 @@ This project implements a resilient multi-channel notification platform with:
 | Component | Technology | Purpose |
 |---|---|---|
 | Runtime | Node.js + TypeScript | Backend runtime |
-| API | Express.js | HTTP API |
+| API contract | OpenAPI 3.0 | Internal HTTP API contract; server implementation pending |
 | Database | PostgreSQL 15 | Primary persistent storage |
 | Cache / State | Redis 7 | Caching, rate limiting, counters |
 | Event Streaming | Apache Kafka | Event ingestion and processing |
 | Message Queue | RabbitMQ 3.12 | Delivery routing, priorities, DLQ |
-| Template Engine | Handlebars.js | Notification templates |
+| Template Engine | Handlebars.js | Planned notification-template rendering |
 | Containerisation | Docker Compose | Local infrastructure |
-| Testing | Jest + Supertest | Unit and API testing |
+| Testing | Vitest | Unit and integration testing |
 
 ## High-Level Architecture
 

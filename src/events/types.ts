@@ -18,6 +18,7 @@ export type EventCategory =
 
 export interface BaseEvent {
     eventId: string;
+    idempotencyKey?: string;
     eventType: string;
     eventCategory: EventCategory;
     userId: string;

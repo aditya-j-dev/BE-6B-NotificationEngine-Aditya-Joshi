@@ -97,6 +97,17 @@ describe("Financial Event Validators", () => {
             expect(result.success).toBe(false);
         });
 
+        it("rejects an empty idempotency key when one is supplied", () => {
+            const event = createTestEvent("TXNX-001");
+
+            const result = FinancialEventSchema.safeParse({
+                ...event,
+                idempotencyKey: "",
+            });
+
+            expect(result.success).toBe(false);
+        });
+
 
         it("rejects invalid occurredAt", () => {
             const event = createTestEvent("TXNX-001");

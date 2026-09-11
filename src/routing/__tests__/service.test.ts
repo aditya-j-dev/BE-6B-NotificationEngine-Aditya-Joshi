@@ -58,7 +58,9 @@ describe("EventRoutingService", () => {
                     mandatory: false,
                 },
             ],
-        } as any;
+        } as unknown as Parameters<
+            EventRoutingService["route"]
+        >[0];
 
         const result =
             service.route(enrichedEvent);
@@ -80,7 +82,7 @@ describe("EventRoutingService", () => {
         });
 
         expect(result.routes[1]).toMatchObject({
-            channel: NotificationChannel.SMS,
+            channel: NotificationChannel.EMAIL,
             source: "SYSTEM_DEFAULT",
             mandatory: false,
         });
@@ -91,8 +93,8 @@ describe("EventRoutingService", () => {
             ),
         ).toEqual([
             NotificationChannel.PUSH,
-            NotificationChannel.SMS,
             NotificationChannel.EMAIL,
+            NotificationChannel.SMS,
         ]);
     });
 
@@ -140,7 +142,9 @@ describe("EventRoutingService", () => {
                     mandatory: true,
                 },
             ],
-        } as any;
+        } as unknown as Parameters<
+            EventRoutingService["route"]
+        >[0];
 
         const result =
             service.route(enrichedEvent);
@@ -207,7 +211,9 @@ describe("EventRoutingService", () => {
                     mandatory: false,
                 },
             ],
-        } as any;
+        } as unknown as Parameters<
+            EventRoutingService["route"]
+        >[0];
 
         const result =
             service.route(enrichedEvent);

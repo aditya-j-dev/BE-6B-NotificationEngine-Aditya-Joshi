@@ -47,7 +47,9 @@ describe("EventEnrichmentService", () => {
             userPreference: {
                 findMany: async () => [],
             },
-        } as any;
+        } as unknown as ConstructorParameters<
+            typeof EventEnrichmentService
+        >[0];
 
         const service =
             new EventEnrichmentService(prisma);
@@ -94,7 +96,9 @@ describe("EventEnrichmentService", () => {
                     },
                 ],
             },
-        } as any;
+        } as unknown as ConstructorParameters<
+            typeof EventEnrichmentService
+        >[0];
 
         const service =
             new EventEnrichmentService(prisma);
@@ -152,7 +156,9 @@ describe("EventEnrichmentService", () => {
                     },
                 ],
             },
-        } as any;
+        } as unknown as ConstructorParameters<
+            typeof EventEnrichmentService
+        >[0];
 
         const service =
             new EventEnrichmentService(prisma);
