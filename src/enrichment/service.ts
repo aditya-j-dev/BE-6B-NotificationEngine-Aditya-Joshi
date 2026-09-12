@@ -1,49 +1,40 @@
 import { PrismaClient } from "../generated/prisma/client";
-import { NotificationChannel } from "../generated/prisma/enums";
 
 import type { FinancialEvent } from "../events/types";
-
 import {
-    EVENT_CHANNEL_POLICY,
-    SEGMENT_CHANNEL_OVERRIDES,
-    type UserSegment,
-} from "./channel-policy";
+    PreferenceHierarchyResolver,
+    type PreferenceInput,
+} from "../preferences";
 
-import type {
-    EnrichedEvent,
-    ResolvedChannel,
-    UserContext,
-} from "./types";
+import type { UserSegment } from "./channel-policy";
+import type { EnrichedEvent, UserContext } from "./types";
 
 export class EventEnrichmentService {
+    private readonly preferenceResolver = new PreferenceHierarchyResolver();
+
     constructor(
         private readonly prisma: PrismaClient,
     ) { }
 
-    async enrich(
-        event: FinancialEvent,
-    ): Promise<EnrichedEvent> {
-        const user = await this.resolveUserContext(
-            event.userId,
-        );
+    async enrich(event: FinancialEvent): Promise<EnrichedEvent> {
+        const user = await this.resolveUserContext(event.userId);
+        const preferences = await this.prisma.userPreference.findMany({
+            where: { userId: event.userId },
+        });
+        const performance = await this.prisma.userChannelPerformance?.findMany({
+            where: { userId: event.userId },
+        }) ?? [];
 
-        const preferences =
-            await this.prisma.userPreference.findMany({
-                where: {
-                    userId: event.userId,
-                },
-            });
-
-        const performance =
-            await this.prisma.userChannelPerformance?.findMany({
-                where: { userId: event.userId },
-            }) ?? [];
-
-        const channels = this.resolveChannels(
-            event,
-            user.segment,
-            preferences,
-        );
+        const channels = this.preferenceResolver.resolve({
+            eventType: event.eventType,
+            eventCategory: event.eventCategory,
+            segment: user.segment,
+            userPreferences: this.toPreferenceInputs(preferences),
+        }).map(({ channel, source, mandatory }) => ({
+            channel,
+            source,
+            mandatory,
+        }));
 
         return {
             event,
@@ -61,13 +52,9 @@ export class EventEnrichmentService {
         };
     }
 
-    private async resolveUserContext(
-        userId: string,
-    ): Promise<UserContext> {
+    private async resolveUserContext(userId: string): Promise<UserContext> {
         const user = await this.prisma.user.findUnique({
-            where: {
-                id: userId,
-            },
+            where: { id: userId },
             select: {
                 id: true,
                 phone: true,
@@ -80,22 +67,16 @@ export class EventEnrichmentService {
         });
 
         if (!user) {
-            throw new Error(
-                `User ${userId} not found`,
-            );
+            throw new Error(`User ${userId} not found`);
         }
 
         return {
             ...user,
-            segment: this.isUserSegment(user.segment)
-                ? user.segment
-                : "STANDARD",
+            segment: this.isUserSegment(user.segment) ? user.segment : "STANDARD",
         };
     }
 
-    private isUserSegment(
-        value: string,
-    ): value is UserSegment {
+    private isUserSegment(value: string): value is UserSegment {
         return [
             "STANDARD",
             "PREMIUM",
@@ -104,117 +85,47 @@ export class EventEnrichmentService {
         ].includes(value);
     }
 
-    private resolveChannels(
-        event: FinancialEvent,
-        segment: UserSegment,
+    private toPreferenceInputs(
         preferences: Array<{
             eventCategory: string;
             eventType: string;
-            channel: NotificationChannel;
+            channel: PreferenceInput["channel"];
             enabled: boolean;
+            quietHoursOverride?: boolean;
+            digestMode?: string;
+            priorityOverride?: number | null;
         }>,
-    ): ResolvedChannel[] {
-        const policy =
-            EVENT_CHANNEL_POLICY[event.eventType];
+    ): PreferenceInput[] {
+        const eventCategories = new Set<PreferenceInput["eventCategory"]>([
+            "transaction",
+            "risk_margin",
+            "sip_investment",
+            "market_price",
+            "regulatory_compliance",
+        ]);
+        const digestModes = new Set<PreferenceInput["digestMode"]>([
+            "immediate",
+            "hourly",
+            "daily",
+        ]);
 
-        if (!policy) {
-            throw new Error(
-                `No channel policy configured for ${event.eventType}`,
-            );
-        }
+        return preferences.flatMap((preference) => {
+            const eventCategory = preference.eventCategory as PreferenceInput["eventCategory"];
+            const digestMode = preference.digestMode as PreferenceInput["digestMode"];
 
-        /*
-         * Layer 1:
-         * System defaults from the event/channel decision matrix.
-         */
-        const systemChannels =
-            new Set(policy.defaultChannels);
-
-        const segmentChannels =
-            SEGMENT_CHANNEL_OVERRIDES[segment]?.[
-                event.eventCategory
-            ] ?? [];
-
-        for (const channel of segmentChannels) {
-            systemChannels.add(channel);
-        }
-
-        /*
-         * Layer 3:
-         * User preferences.
-         *
-         * Event-specific preference takes precedence over
-         * category-level "*" preference.
-         */
-        const resolved = new Map<
-            NotificationChannel,
-            ResolvedChannel
-        >();
-
-        for (const channel of systemChannels) {
-            const exactPreference =
-                preferences.find(
-                    (preference) =>
-                        preference.eventType ===
-                        event.eventType &&
-                        preference.channel === channel,
-                );
-
-            const categoryPreference =
-                preferences.find(
-                    (preference) =>
-                        preference.eventType === "*" &&
-                        preference.eventCategory ===
-                        event.eventCategory &&
-                        preference.channel === channel,
-                );
-
-            const preference =
-                exactPreference ??
-                categoryPreference;
-
-            /*
-             * No user preference:
-             * retain the system default.
-             */
-            if (!preference) {
-                resolved.set(channel, {
-                    channel,
-                    source: segmentChannels.includes(channel)
-                        ? "SEGMENT_OVERRIDE"
-                        : "SYSTEM_DEFAULT",
-                    mandatory: false,
-                });
-
-                continue;
+            if (!eventCategories.has(eventCategory)) {
+                return [];
             }
 
-            /*
-             * Explicit user preference.
-             */
-            if (preference.enabled) {
-                resolved.set(channel, {
-                    channel,
-                    source: "USER_PREFERENCE",
-                    mandatory: false,
-                });
-            }
-        }
-
-        /*
-         * Layer 4:
-         * Regulatory override.
-         *
-         * Mandatory channels always win over user preferences.
-         */
-        for (const channel of policy.regulatoryChannels) {
-            resolved.set(channel, {
-                channel,
-                source: "REGULATORY_OVERRIDE",
-                mandatory: true,
-            });
-        }
-
-        return Array.from(resolved.values());
+            return [{
+                eventCategory,
+                eventType: preference.eventType,
+                channel: preference.channel,
+                enabled: preference.enabled,
+                quietHoursOverride: preference.quietHoursOverride ?? false,
+                digestMode: digestModes.has(digestMode) ? digestMode : "immediate",
+                priorityOverride: preference.priorityOverride ?? null,
+            }];
+        });
     }
 }

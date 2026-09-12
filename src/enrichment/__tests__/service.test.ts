@@ -5,6 +5,7 @@ import { NotificationChannel } from "../../generated/prisma/enums";
 import {
     EventEnrichmentService,
 } from "../service";
+import { EventRoutingService } from "../../routing/service";
 
 import type { FinancialEvent } from "../../events/types";
 
@@ -199,5 +200,44 @@ describe("EventEnrichmentService", () => {
         expect(push?.source).toBe(
             "REGULATORY_OVERRIDE",
         );
+    });
+
+    it("carries a user preference through enrichment into routing", async () => {
+        const prisma = {
+            user: {
+                findUnique: async () => ({
+                    id: "user-001",
+                    phone: "+919000000001",
+                    email: "user@example.com",
+                    name: "Test User",
+                    language: "en",
+                    timezone: "Asia/Kolkata",
+                    segment: "STANDARD",
+                }),
+            },
+            userPreference: {
+                findMany: async () => [{
+                    eventCategory: "transaction",
+                    eventType: "TXNX-001",
+                    channel: NotificationChannel.IN_APP,
+                    enabled: true,
+                    quietHoursOverride: false,
+                    digestMode: "immediate",
+                    priorityOverride: null,
+                }],
+            },
+        } as unknown as ConstructorParameters<typeof EventEnrichmentService>[0];
+        const enrichment = new EventEnrichmentService(prisma);
+        const routing = new EventRoutingService();
+
+        const decision = routing.route(await enrichment.enrich(createEvent()));
+
+        expect(decision.routes).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                channel: NotificationChannel.IN_APP,
+                source: "USER_PREFERENCE",
+                mandatory: false,
+            }),
+        ]));
     });
 });
