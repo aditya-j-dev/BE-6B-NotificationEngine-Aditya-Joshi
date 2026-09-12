@@ -9,6 +9,7 @@ export interface TemplateDefinition {
     channel: NotificationChannel;
     language: string;
     version: number;
+    requiredFields?: string[];
     experimentKey?: string | null;
     variant?: string | null;
     variantWeight?: number;

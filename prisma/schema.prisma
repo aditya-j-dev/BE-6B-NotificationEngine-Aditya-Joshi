@@ -9,19 +9,19 @@ datasource db {
 }
 
 model User {
-  id             String           @id @default(uuid()) @db.Uuid
-  phone          String           @unique
-  email          String           @unique
-  name           String?
-  language       String           @default("en")
-  timezone       String           @default("Asia/Kolkata")
-  segment        String           @default("STANDARD")
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
-  consentRecords ConsentRecord[]
-  notifications  Notification[]
-  preferences    UserPreference[]
+  id                 String                   @id @default(uuid()) @db.Uuid
+  phone              String                   @unique
+  email              String                   @unique
+  name               String?
+  language           String                   @default("en")
+  timezone           String                   @default("Asia/Kolkata")
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  segment            String                   @default("STANDARD")
+  consentRecords     ConsentRecord[]
+  notifications      Notification[]
   channelPerformance UserChannelPerformance[]
+  preferences        UserPreference[]
 }
 
 model UserChannelPerformance {
@@ -66,9 +66,11 @@ model Notification {
   stateLogs           NotificationStateLog[]
 
   @@id([id, createdAt])
-  @@index([userId, status, channel], map: "Notification_userId_status_channel_idx")
-  @@index([eventType, createdAt], map: "Notification_eventType_createdAt_idx")
+  @@index([userId, status, channel])
+  @@index([eventType, createdAt])
   @@index([status], map: "Notification_queued_retrying_status_idx", where: raw("(status = ANY (ARRAY['QUEUED'::\"NotificationStatus\", 'RETRYING'::\"NotificationStatus\"]))"))
+  @@index([createdAt], map: "Notification_createdAt_brin_idx", type: Brin)
+  @@index([personalizationData], map: "Notification_personalizationData_gin_idx", type: Gin)
 }
 
 model NotificationStateLog {
@@ -119,22 +121,24 @@ model UserPreference {
 }
 
 model Template {
-  id          String              @id @default(uuid()) @db.Uuid
-  templateKey String
-  eventType   String
-  channel     NotificationChannel
-  language    String              @default("en")
-  version     Int
+  id            String              @id @default(uuid()) @db.Uuid
+  templateKey   String
+  eventType     String
+  channel       NotificationChannel
+  language      String              @default("en")
+  version       Int
+  requiredFields String[]            @default([])
+  content       String
+  active        Boolean             @default(true)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
   experimentKey String?
   variant       String?
   variantWeight Int                 @default(100)
-  content     String
-  active      Boolean             @default(true)
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
 
   @@unique([templateKey, channel, language, version])
   @@index([eventType, channel, language])
+  @@index([experimentKey, variant])
 }
 
 model DeliveryProvider {

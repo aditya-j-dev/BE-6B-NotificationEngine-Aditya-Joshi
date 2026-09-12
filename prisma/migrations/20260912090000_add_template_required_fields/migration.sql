@@ -1,0 +1,2 @@
+ALTER TABLE "Template"
+ADD COLUMN "requiredFields" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];
