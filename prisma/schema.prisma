@@ -19,6 +19,8 @@ model User {
   updatedAt          DateTime                 @updatedAt
   segment            String                   @default("STANDARD")
   consentRecords     ConsentRecord[]
+  consentAuditLogs   ConsentAuditLog[]
+  quietHoursBypassAuditLogs QuietHoursBypassAuditLog[]
   notifications      Notification[]
   channelPerformance UserChannelPerformance[]
   preferences        UserPreference[]
@@ -170,6 +172,41 @@ model ConsentRecord {
   user        User        @relation(fields: [userId], references: [id])
 
   @@index([userId, consentType])
+}
+
+model ConsentAuditLog {
+  id          String      @id @default(uuid()) @db.Uuid
+  userId      String      @db.Uuid
+  consentType ConsentType
+  previousGranted Boolean?
+  granted     Boolean
+  source      String?     @db.VarChar(100)
+  action      String      @db.VarChar(20)
+  createdAt   DateTime    @default(now())
+  user        User        @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, consentType, createdAt])
+  @@index([createdAt])
+}
+
+model QuietHoursBypassAuditLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  notificationId String   @db.Uuid
+  eventId        String   @db.VarChar(50)
+  eventType      String   @db.VarChar(30)
+  userId         String   @db.Uuid
+  priority       String   @db.VarChar(20)
+  timezone       String   @db.VarChar(50)
+  localTime      String   @db.VarChar(5)
+  quietHoursStart String  @db.VarChar(5)
+  quietHoursEnd  String   @db.VarChar(5)
+  reason         String   @db.VarChar(100)
+  createdAt      DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId, createdAt])
+  @@index([notificationId])
+  @@index([createdAt])
 }
 
 enum NotificationStatus {
