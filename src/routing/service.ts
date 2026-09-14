@@ -3,18 +3,28 @@ import type {
     RoutingDecision,
     RoutedChannel,
 } from "./types";
+import { PriorityWeightedChannelScorer } from "./scoring";
 
 export class EventRoutingService {
+    constructor(
+        private readonly scorer = new PriorityWeightedChannelScorer(),
+    ) { }
+
     route(
         enrichedEvent: EnrichedEvent,
     ): RoutingDecision {
         const routes: RoutedChannel[] =
             [...enrichedEvent.channels]
-                .sort((a, b) => {
-                    return this.scoreChannel(b, enrichedEvent) -
-                        this.scoreChannel(a, enrichedEvent);
+                .map((resolvedChannel) => {
+                    const score = this.scorer.score(
+                        resolvedChannel,
+                        enrichedEvent.event.priority,
+                        enrichedEvent.channelPerformance?.[resolvedChannel.channel],
+                    );
+                    return { resolvedChannel, score };
                 })
-                .map((resolvedChannel) => ({
+                .sort((left, right) => right.score.total - left.score.total)
+                .map(({ resolvedChannel, score }) => ({
                     channel:
                         resolvedChannel.channel,
 
@@ -24,10 +34,8 @@ export class EventRoutingService {
                     mandatory:
                         resolvedChannel.mandatory,
 
-                    score: this.scoreChannel(
-                        resolvedChannel,
-                        enrichedEvent,
-                    ),
+                    score: score.total,
+                    scoreBreakdown: score.breakdown,
 
                     source:
                         resolvedChannel.source,
@@ -58,32 +66,4 @@ export class EventRoutingService {
         };
     }
 
-    private scoreChannel(
-        channel: EnrichedEvent["channels"][number],
-        enrichedEvent: EnrichedEvent,
-    ): number {
-        const performance = enrichedEvent.channelPerformance?.[
-            channel.channel
-        ] ?? { deliveryRate: 0.5, averageLatencyMs: 1000 };
-
-        const sourceBonus = {
-            SYSTEM_DEFAULT: 0,
-            SEGMENT_OVERRIDE: 15,
-            USER_PREFERENCE: 30,
-            REGULATORY_OVERRIDE: 1000,
-        } as const;
-
-        const costPenalty = {
-            SMS: 20,
-            EMAIL: 4,
-            PUSH: 0,
-            WHATSAPP: 55,
-            IN_APP: 0,
-        } as const;
-
-        return sourceBonus[channel.source] +
-            (performance.deliveryRate * 100) -
-            Math.min(performance.averageLatencyMs / 100, 25) -
-            costPenalty[channel.channel];
-    }
 }

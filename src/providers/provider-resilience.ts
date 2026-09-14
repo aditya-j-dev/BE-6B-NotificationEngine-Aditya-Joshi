@@ -17,6 +17,27 @@ export interface CircuitBreakerPolicy {
     cooldownMs: number;
 }
 
+export interface ProviderPerformanceThresholdPolicy {
+    /** Minimum number of recent sends before the provider is evaluated. */
+    minimumSamples: number;
+    /** Fraction from 0 (exclusive) to 1 (inclusive), e.g. 0.25 for 25%. */
+    failureRateThreshold: number;
+    /** Maximum allowed average provider response time in milliseconds. */
+    averageResponseTimeThresholdMs: number;
+    /** Rolling observation window for this provider. */
+    windowMs: number;
+}
+
+export interface ProviderPerformanceAssessment {
+    provider: string;
+    sampleCount: number;
+    failureRate: number;
+    averageResponseTimeMs: number;
+    failureRateExceeded: boolean;
+    responseTimeExceeded: boolean;
+    thresholdExceeded: boolean;
+}
+
 export type CircuitBreakerState = "CLOSED" | "OPEN" | "HALF_OPEN";
 
 export interface ProviderRateLimiter {
@@ -66,6 +87,76 @@ interface CircuitRecord {
     consecutiveFailures: number;
     openedAt: number | null;
     probeInFlight: boolean;
+}
+
+interface ProviderPerformanceSample {
+    occurredAt: number;
+    failed: boolean;
+    responseTimeMs: number;
+}
+
+/**
+ * Evaluates each provider against its own recent failure-rate and latency
+ * thresholds. Policies are deliberately injected so production limits remain
+ * configuration, rather than hard-coded provider assumptions.
+ */
+export class ProviderPerformanceThresholdMonitor {
+    private readonly samples = new Map<string, ProviderPerformanceSample[]>();
+
+    constructor(
+        private readonly policies: Readonly<Record<string, ProviderPerformanceThresholdPolicy>>,
+        private readonly now: () => number = Date.now,
+    ) {
+        Object.entries(policies).forEach(([provider, policy]) => this.validatePolicy(provider, policy));
+    }
+
+    record(provider: string, failed: boolean, responseTimeMs: number): ProviderPerformanceAssessment | null {
+        const policy = this.policies[provider];
+        if (!policy) return null;
+
+        const timestamp = this.now();
+        const retained = (this.samples.get(provider) ?? []).filter(
+            (sample) => timestamp - sample.occurredAt < policy.windowMs,
+        );
+        retained.push({
+            occurredAt: timestamp,
+            failed,
+            responseTimeMs: Math.max(0, responseTimeMs),
+        });
+        this.samples.set(provider, retained);
+
+        const sampleCount = retained.length;
+        const failureRate = retained.filter((sample) => sample.failed).length / sampleCount;
+        const averageResponseTimeMs = retained.reduce(
+            (total, sample) => total + sample.responseTimeMs,
+            0,
+        ) / sampleCount;
+        const ready = sampleCount >= policy.minimumSamples;
+        const failureRateExceeded = ready && failureRate >= policy.failureRateThreshold;
+        const responseTimeExceeded = ready && averageResponseTimeMs >= policy.averageResponseTimeThresholdMs;
+
+        return {
+            provider,
+            sampleCount,
+            failureRate,
+            averageResponseTimeMs,
+            failureRateExceeded,
+            responseTimeExceeded,
+            thresholdExceeded: failureRateExceeded || responseTimeExceeded,
+        };
+    }
+
+    private validatePolicy(provider: string, policy: ProviderPerformanceThresholdPolicy): void {
+        if (
+            policy.minimumSamples < 1
+            || policy.failureRateThreshold <= 0
+            || policy.failureRateThreshold > 1
+            || policy.averageResponseTimeThresholdMs < 1
+            || policy.windowMs < 1
+        ) {
+            throw new Error(`Invalid performance threshold policy for provider ${provider}`);
+        }
+    }
 }
 
 /** A provider circuit breaker with CLOSED, OPEN, and one-probe HALF_OPEN states. */
@@ -127,6 +218,13 @@ export class ProviderCircuitBreaker {
         }
     }
 
+    open(provider: string): void {
+        const record = this.recordFor(provider);
+        record.state = "OPEN";
+        record.openedAt = this.now();
+        record.probeInFlight = false;
+    }
+
     state(provider: string): CircuitBreakerState {
         return this.recordFor(provider).state;
     }
@@ -153,6 +251,8 @@ export class ResilientDeliveryProvider implements DeliveryProvider {
         private readonly provider: DeliveryProvider,
         private readonly rateLimiter: ProviderRateLimiter,
         private readonly circuitBreaker: ProviderCircuitBreaker,
+        private readonly performanceMonitor?: ProviderPerformanceThresholdMonitor,
+        private readonly now: () => number = Date.now,
     ) { }
 
     async send(notification: PreparedNotification): Promise<DeliveryResult> {
@@ -178,6 +278,7 @@ export class ResilientDeliveryProvider implements DeliveryProvider {
             };
         }
 
+        const startedAt = this.now();
         try {
             const result = await this.provider.send(notification);
             if (result.status === "FAILED") {
@@ -185,9 +286,11 @@ export class ResilientDeliveryProvider implements DeliveryProvider {
             } else {
                 this.circuitBreaker.recordSuccess(this.providerName);
             }
+            this.recordPerformance(result.status === "FAILED", this.now() - startedAt);
             return result;
         } catch (error) {
             this.circuitBreaker.recordFailure(this.providerName);
+            this.recordPerformance(true, this.now() - startedAt);
             return {
                 status: "FAILED",
                 failureCode: "PROVIDER_UNEXPECTED_ERROR",
@@ -207,5 +310,12 @@ export class ResilientDeliveryProvider implements DeliveryProvider {
 
     getQuota(): Promise<QuotaInfo> {
         return this.provider.getQuota();
+    }
+
+    private recordPerformance(failed: boolean, responseTimeMs: number): void {
+        const assessment = this.performanceMonitor?.record(this.providerName, failed, responseTimeMs);
+        if (assessment?.thresholdExceeded) {
+            this.circuitBreaker.open(this.providerName);
+        }
     }
 }

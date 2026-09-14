@@ -4,6 +4,7 @@ import type { DeliveryProvider } from "../delivery-provider";
 import {
     FixedWindowProviderRateLimiter,
     ProviderCircuitBreaker,
+    ProviderPerformanceThresholdMonitor,
     ResilientDeliveryProvider,
 } from "../provider-resilience";
 
@@ -83,6 +84,79 @@ describe("provider resilience", () => {
         now += 1_000;
         await expect(resilient.send(notification)).resolves.toMatchObject({ status: "SENT" });
         expect(circuit.state("email")).toBe("CLOSED");
+    });
+
+    it("re-opens after a failed half-open probe and permits only one probe at a time", () => {
+        let now = 0;
+        const circuit = new ProviderCircuitBreaker({ failureThreshold: 1, cooldownMs: 1_000 }, () => now);
+
+        circuit.recordFailure("email");
+        now += 1_000;
+        expect(circuit.tryAcquire("email")).toEqual({ allowed: true, state: "HALF_OPEN" });
+        expect(circuit.tryAcquire("email")).toMatchObject({ allowed: false, state: "HALF_OPEN" });
+
+        circuit.recordFailure("email");
+        expect(circuit.state("email")).toBe("OPEN");
+        expect(circuit.tryAcquire("email")).toMatchObject({ allowed: false, state: "OPEN" });
+    });
+
+    it("evaluates each provider against its own rolling failure-rate and response-time limits", () => {
+        let now = 0;
+        const monitor = new ProviderPerformanceThresholdMonitor({
+            twilio: {
+                minimumSamples: 2,
+                failureRateThreshold: 0.5,
+                averageResponseTimeThresholdMs: 500,
+                windowMs: 1_000,
+            },
+            smtp: {
+                minimumSamples: 2,
+                failureRateThreshold: 0.8,
+                averageResponseTimeThresholdMs: 100,
+                windowMs: 1_000,
+            },
+        }, () => now);
+
+        expect(monitor.record("twilio", false, 200)).toMatchObject({ thresholdExceeded: false });
+        expect(monitor.record("twilio", true, 200)).toMatchObject({
+            failureRate: 0.5,
+            failureRateExceeded: true,
+            responseTimeExceeded: false,
+        });
+        expect(monitor.record("smtp", false, 150)).toMatchObject({ thresholdExceeded: false });
+        expect(monitor.record("smtp", false, 150)).toMatchObject({
+            failureRateExceeded: false,
+            responseTimeExceeded: true,
+        });
+        now += 1_001;
+        expect(monitor.record("twilio", false, 10)).toMatchObject({ sampleCount: 1, thresholdExceeded: false });
+    });
+
+    it("opens the provider circuit when a configured response-time threshold is exceeded", async () => {
+        let now = 0;
+        const circuit = new ProviderCircuitBreaker({ failureThreshold: 5, cooldownMs: 1_000 }, () => now);
+        const monitor = new ProviderPerformanceThresholdMonitor({
+            email: {
+                minimumSamples: 1,
+                failureRateThreshold: 1,
+                averageResponseTimeThresholdMs: 100,
+                windowMs: 1_000,
+            },
+        }, () => now);
+        const resilient = new ResilientDeliveryProvider(
+            "email",
+            provider(async () => {
+                now += 150;
+                return { status: "SENT", externalId: "email-1", acceptedAt: "now" };
+            }),
+            new FixedWindowProviderRateLimiter({ maxRequests: 10, windowMs: 1_000 }, () => now),
+            circuit,
+            monitor,
+            () => now,
+        );
+
+        await resilient.send(notification);
+        expect(circuit.state("email")).toBe("OPEN");
     });
 
     it("converts a thrown provider exception into a retryable failure and opens its circuit", async () => {
