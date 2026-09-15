@@ -9,6 +9,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:watch": "vitest"
   },
   "prisma": {
@@ -30,6 +31,8 @@
     "@eslint/js": "^10.0.1",
     "@types/node": "^26.2.0",
     "@types/nodemailer": "^8.0.1",
+    "@types/swagger-ui-express": "^4.1.8",
+    "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^10.8.1",
     "eslint-config-prettier": "^10.1.8",
     "prettier": "^3.9.6",
@@ -51,6 +54,7 @@
     "pino": "^10.3.1",
     "prisma": "^7.9.1",
     "socket.io": "^4.8.3",
+    "swagger-ui-express": "^5.0.1",
     "zod": "^4.4.3"
   }
 }

@@ -2,7 +2,12 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
     test: {
-        include: ["src/**/*.test.ts"],
         exclude: ["dist/**", "node_modules/**"],
+        coverage: {
+            provider: "v8",
+            reporter: ["text", "json-summary"],
+            thresholds: { lines: 80, functions: 80, statements: 80 },
+            exclude: ["src/generated/**", "src/**/__tests__/**"],
+        },
     },
 });

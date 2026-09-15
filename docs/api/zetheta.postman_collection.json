@@ -1,0 +1,14 @@
+{
+  "info": { "name": "ZeTheta Notification Engine", "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json", "description": "Operational ZeTheta REST APIs. Kafka remains the event ingestion boundary." },
+  "variable": [{ "key": "baseUrl", "value": "http://localhost:3000" }, { "key": "userId", "value": "user-1" }, { "key": "dlqEntryId", "value": "replace-me" }],
+  "item": [
+    { "name": "Preferences", "item": [
+      { "name": "Get preferences", "request": { "method": "GET", "url": "{{baseUrl}}/users/{{userId}}/preferences" } },
+      { "name": "Update preferences", "request": { "method": "PUT", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"preferences\": [{\n    \"eventCategory\": \"transaction\",\n    \"eventType\": \"TXNX-001\",\n    \"channel\": \"EMAIL\",\n    \"enabled\": false\n  }]\n}" }, "url": "{{baseUrl}}/users/{{userId}}/preferences" } }
+    ] },
+    { "name": "Delivery", "item": [{ "name": "Provider callback", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{\n  \"callbackId\": \"EV123\",\n  \"provider\": \"twilio\",\n  \"externalId\": \"SM123\",\n  \"status\": \"DELIVERED\",\n  \"occurredAt\": \"2026-09-15T10:01:00.000Z\",\n  \"providerStatus\": \"delivered\"\n}" }, "url": "{{baseUrl}}/provider-callbacks" } }] },
+    { "name": "Operations", "item": [{ "name": "List DLQ", "request": { "method": "GET", "url": "{{baseUrl}}/dlq?limit=20" } }, { "name": "Retry DLQ entry", "request": { "method": "POST", "header": [{ "key": "Content-Type", "value": "application/json" }], "body": { "mode": "raw", "raw": "{ \"actor\": \"ops@example.com\" }" }, "url": "{{baseUrl}}/dlq/{{dlqEntryId}}/retry" } }] },
+    { "name": "Analytics", "item": [{ "name": "Delivery rates", "request": { "method": "GET", "url": "{{baseUrl}}/analytics/delivery-rates?channel=SMS" } }, { "name": "Channel performance", "request": { "method": "GET", "url": "{{baseUrl}}/analytics/channel-performance" } }, { "name": "Costs", "request": { "method": "GET", "url": "{{baseUrl}}/analytics/costs?channel=SMS" } }] },
+    { "name": "Observability", "item": [{ "name": "Swagger UI", "request": { "method": "GET", "url": "{{baseUrl}}/api-docs" } }, { "name": "OpenAPI contract", "request": { "method": "GET", "url": "{{baseUrl}}/openapi.json" } }, { "name": "Liveness", "request": { "method": "GET", "url": "{{baseUrl}}/health/live" } }, { "name": "Prometheus metrics", "request": { "method": "GET", "url": "{{baseUrl}}/metrics" } }] }
+  ]
+}

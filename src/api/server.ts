@@ -25,6 +25,7 @@ import {
     observeRequest,
 } from "../observability";
 import type { Logger } from "pino";
+import { createApiDocumentationHandler } from "./docs";
 
 /** Creates the ZeTheta HTTP server with the currently available API routes. */
 export function createApiServer(
@@ -54,10 +55,12 @@ export function createApiServer(
         ? createAnalyticsDashboardApiHandler(analyticsDashboard)
         : undefined;
     const healthHandler = healthService ? createHealthApiHandler(healthService) : undefined;
+    const documentationHandler = createApiDocumentationHandler();
 
     return createServer((request, response) => {
         observeRequest(request, response, logger, async () => {
             const pathname = new URL(request.url ?? "/", "http://localhost").pathname;
+            if (pathname === "/openapi.json" || pathname === "/api-docs" || pathname.startsWith("/api-docs/")) return documentationHandler(request, response);
             if (pathname.startsWith("/health") && healthHandler) return healthHandler(request, response);
             if (pathname === "/provider-callbacks" && acknowledgementHandler) return acknowledgementHandler(request, response);
             if (pathname === "/dlq" || pathname.startsWith("/dlq/")) {
