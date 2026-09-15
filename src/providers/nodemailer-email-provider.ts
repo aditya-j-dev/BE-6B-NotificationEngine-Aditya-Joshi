@@ -50,6 +50,15 @@ export class NodemailerEmailProviderConfigurationError extends Error {
     }
 }
 
+export interface SmtpEmailProviderConfig {
+    host: string;
+    port: number;
+    secure: boolean;
+    user: string;
+    password: string;
+    from: string;
+}
+
 /** SMTP email adapter; Ethereal is used by the factory below for safe testing. */
 export class NodemailerEmailProvider implements DeliveryProvider, HealthCheckableProvider {
     readonly channel = "EMAIL" as const;
@@ -197,4 +206,39 @@ export async function createEtherealEmailProvider(): Promise<NodemailerEmailProv
             result as unknown as { response?: string | Buffer | null },
         ),
     });
+}
+
+/** Builds a real SMTP provider from the SMTP_* values in the environment. */
+export function createNodemailerEmailProviderFromEnv(
+    environment: NodeJS.ProcessEnv = process.env,
+): NodemailerEmailProvider {
+    const port = Number(environment.SMTP_PORT ?? "");
+    const config: SmtpEmailProviderConfig = {
+        host: environment.SMTP_HOST ?? "",
+        port,
+        secure: environment.SMTP_SECURE === "true",
+        user: environment.SMTP_USER ?? "",
+        password: environment.SMTP_PASSWORD ?? "",
+        from: environment.SMTP_FROM ?? "",
+    };
+    if (
+        !config.host
+        || !Number.isInteger(config.port)
+        || config.port < 1
+        || !config.user
+        || !config.password
+        || !config.from
+    ) {
+        throw new NodemailerEmailProviderConfigurationError(
+            "SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, and SMTP_FROM are required",
+        );
+    }
+
+    const transport = nodemailer.createTransport({
+        host: config.host,
+        port: config.port,
+        secure: config.secure,
+        auth: { user: config.user, pass: config.password },
+    }) as unknown as EmailTransport;
+    return new NodemailerEmailProvider(transport, { from: config.from, providerName: "smtp" });
 }

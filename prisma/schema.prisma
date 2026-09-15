@@ -123,8 +123,11 @@ model DeadLetterQueue {
   resolvedBy            String?      @db.VarChar(50)
   resolvedAt            DateTime?
   resolutionAction      String?      @db.VarChar(50)
+  classification        DlqFailureClassification?
   createdAt             DateTime     @default(now())
   notification          Notification @relation(fields: [notificationId, notificationCreatedAt], references: [id, createdAt])
+
+  @@index([classification, createdAt])
 }
 
 model UserPreference {
@@ -267,4 +270,10 @@ enum ProviderChannel {
   PUSH
   WHATSAPP
   IN_APP
+}
+
+enum DlqFailureClassification {
+  TRANSIENT
+  PERMANENT
+  CONFIGURATION_ERROR
 }
