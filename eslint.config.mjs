@@ -9,4 +9,14 @@ export default tseslint.config(
   {
     ignores: ['dist/**', 'node_modules/**'],
   },
+  {
+    files: ['load-tests/**/*.js'],
+    languageOptions: {
+      globals: {
+        __ENV: 'readonly',
+        __VU: 'readonly',
+        __ITER: 'readonly',
+      },
+    },
+  },
 );
