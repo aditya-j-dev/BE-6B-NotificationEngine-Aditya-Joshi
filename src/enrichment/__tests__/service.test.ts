@@ -33,6 +33,20 @@ function createEvent(
 }
 
 describe("EventEnrichmentService", () => {
+    it("starts independent enrichment reads concurrently", async () => {
+        let started = 0;
+        const prisma = {
+            user: { findUnique: async () => { started += 1; return { id: "user-001", phone: "+919000000001", email: "user@example.com", name: null, language: "en", timezone: "Asia/Kolkata", segment: "STANDARD" }; } },
+            userPreference: { findMany: async () => { started += 1; return []; } },
+            userChannelPerformance: { findMany: async () => { started += 1; return []; } },
+        } as unknown as ConstructorParameters<typeof EventEnrichmentService>[0];
+        const service = new EventEnrichmentService(prisma);
+
+        const enrichment = service.enrich(createEvent());
+        expect(started).toBe(3);
+        await expect(enrichment).resolves.toMatchObject({ user: { id: "user-001" } });
+    });
+
     it("resolves user context and system channels", async () => {
         const prisma = {
             user: {

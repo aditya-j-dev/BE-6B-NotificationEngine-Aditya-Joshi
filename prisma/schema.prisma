@@ -73,6 +73,7 @@ model Notification {
   @@index([eventType, createdAt])
   @@index([status], map: "Notification_queued_retrying_status_idx", where: raw("(status = ANY (ARRAY['QUEUED'::\"NotificationStatus\", 'RETRYING'::\"NotificationStatus\"]))"))
   @@index([createdAt], map: "Notification_createdAt_brin_idx", type: Brin)
+  @@index([createdAt, channel, provider], map: "Notification_cost_analytics_idx", where: raw("(\"costPaisa\" IS NOT NULL)"))
   @@index([personalizationData], map: "Notification_personalizationData_gin_idx", type: Gin)
 }
 
@@ -108,7 +109,8 @@ model NotificationStateLog {
   notification          Notification        @relation(fields: [notificationId, notificationCreatedAt], references: [id, createdAt])
 
   @@index([notificationId])
-  @@index([createdAt])
+  @@index([createdAt], map: "NotificationStateLog_createdAt_brin_idx", type: Brin)
+  @@index([createdAt], map: "NotificationStateLog_terminal_createdAt_idx", where: raw("(\"toStatus\" = ANY (ARRAY['DELIVERED'::\"NotificationStatus\", 'FAILED'::\"NotificationStatus\", 'BOUNCED'::\"NotificationStatus\"]))"))
 }
 
 model DeadLetterQueue {
@@ -211,6 +213,7 @@ model ConsentAuditLog {
 
   @@index([userId, consentType, createdAt])
   @@index([createdAt])
+  @@index([action, createdAt])
 }
 
 model QuietHoursBypassAuditLog {

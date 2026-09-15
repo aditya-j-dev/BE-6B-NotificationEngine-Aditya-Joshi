@@ -17,13 +17,13 @@ export class EventEnrichmentService {
     ) { }
 
     async enrich(event: FinancialEvent): Promise<EnrichedEvent> {
-        const user = await this.resolveUserContext(event.userId);
-        const preferences = await this.prisma.userPreference.findMany({
-            where: { userId: event.userId },
-        });
-        const performance = await this.prisma.userChannelPerformance?.findMany({
-            where: { userId: event.userId },
-        }) ?? [];
+        // These independent reads share one event userId; run them concurrently
+        // instead of serialising three database round trips on every event.
+        const [user, preferences, performance] = await Promise.all([
+            this.resolveUserContext(event.userId),
+            this.prisma.userPreference.findMany({ where: { userId: event.userId } }),
+            this.prisma.userChannelPerformance?.findMany({ where: { userId: event.userId } }) ?? Promise.resolve([]),
+        ]);
 
         const channels = this.preferenceResolver.resolve({
             eventType: event.eventType,

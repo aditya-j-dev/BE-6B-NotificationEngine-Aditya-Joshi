@@ -1,15 +1,21 @@
 import { Redis } from "ioredis";
+import { RedisConnectionPool, type RedisPoolClient } from "./redis-pool";
 
 export class EventDeduplicationService {
-    private readonly redis: Redis;
+    private readonly redis?: Redis;
+    private readonly redisPool?: RedisConnectionPool;
 
     constructor(
-        redisUrl =
+        redisUrlOrPool: string | RedisConnectionPool =
             process.env.REDIS_URL ??
             "redis://localhost:6380",
         private readonly ttlSeconds = 86400,
     ) {
-        this.redis = new Redis(redisUrl);
+        if (typeof redisUrlOrPool === "string") {
+            this.redis = new Redis(redisUrlOrPool, { enableAutoPipelining: true });
+        } else {
+            this.redisPool = redisUrlOrPool;
+        }
     }
 
     async isDuplicate(
@@ -17,7 +23,7 @@ export class EventDeduplicationService {
     ): Promise<boolean> {
         const key = `notification:dedup:${eventId}`;
 
-        const result = await this.redis.set(
+        const result = await this.client().set(
             key,
             "1",
             "EX",
@@ -33,6 +39,12 @@ export class EventDeduplicationService {
     }
 
     async close(): Promise<void> {
-        await this.redis.quit();
+        if (this.redis) await this.redis.quit();
+    }
+
+    private client(): RedisPoolClient {
+        const client = this.redisPool?.next() ?? this.redis;
+        if (!client) throw new Error("Event deduplication Redis client is unavailable");
+        return client;
     }
 }

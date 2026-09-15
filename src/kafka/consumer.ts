@@ -1,4 +1,5 @@
 import { Kafka, Consumer, EachMessagePayload } from "kafkajs";
+import { Pool } from "pg";
 import { FinancialEventSchema } from "../events/schemas";
 import { deserializeEvent } from "./avro";
 import {
@@ -10,6 +11,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import {
     EventDeduplicationService,
 } from "../deduplication/service";
+import { RedisConnectionPool } from "../deduplication/redis-pool";
 
 import {
     EventEnrichmentService,
@@ -23,17 +25,39 @@ import {
     NotificationPipeline,
 } from "./pipeline";
 
-const adapter = new PrismaPg({
+function boundedPositiveInteger(value: string | undefined, fallback: number, name: string): number {
+    const parsed = Number(value ?? fallback);
+    if (!Number.isInteger(parsed) || parsed < 1) throw new Error(`${name} must be a positive integer`);
+    return parsed;
+}
+
+const postgresPool = new Pool({
     connectionString:
         process.env.DATABASE_URL,
+    max: boundedPositiveInteger(process.env.POSTGRES_POOL_MAX, 20, "POSTGRES_POOL_MAX"),
+    min: boundedPositiveInteger(process.env.POSTGRES_POOL_MIN, 2, "POSTGRES_POOL_MIN"),
+    idleTimeoutMillis: boundedPositiveInteger(process.env.POSTGRES_POOL_IDLE_TIMEOUT_MS, 30_000, "POSTGRES_POOL_IDLE_TIMEOUT_MS"),
+    connectionTimeoutMillis: boundedPositiveInteger(process.env.POSTGRES_POOL_CONNECTION_TIMEOUT_MS, 5_000, "POSTGRES_POOL_CONNECTION_TIMEOUT_MS"),
+});
+
+const adapter = new PrismaPg(postgresPool, {
+    disposeExternalPool: false,
 });
 
 const prisma = new PrismaClient({
     adapter,
 });
 
-const deduplication =
-    new EventDeduplicationService();
+const redisPool = new RedisConnectionPool(
+    process.env.REDIS_URL ?? "redis://localhost:6380",
+    {
+        size: boundedPositiveInteger(process.env.REDIS_POOL_SIZE, 8, "REDIS_POOL_SIZE"),
+        maxRetriesPerRequest: boundedPositiveInteger(process.env.REDIS_MAX_RETRIES_PER_REQUEST, 3, "REDIS_MAX_RETRIES_PER_REQUEST"),
+        connectTimeoutMs: boundedPositiveInteger(process.env.REDIS_CONNECT_TIMEOUT_MS, 5_000, "REDIS_CONNECT_TIMEOUT_MS"),
+    },
+);
+
+const deduplication = new EventDeduplicationService(redisPool);
 
 const enrichment =
     new EventEnrichmentService(prisma);
@@ -54,8 +78,14 @@ const kafka = new Kafka({
 });
 
 const consumer: Consumer = kafka.consumer({
-    groupId: "notification-worker",
+    groupId: process.env.KAFKA_GROUP_ID ?? "notification-worker",
 });
+
+const verbosePipelineLogging = process.env.DEBUG_PIPELINE_LOGS === "true";
+
+function debugPipelineLog(message: string, details?: unknown): void {
+    if (verbosePipelineLogging) console.log(message, details ?? "");
+}
 
 async function processMessage({
     topic,
@@ -66,8 +96,7 @@ async function processMessage({
         throw new Error("Kafka message has no value");
     }
 
-    console.log("\nReceived Kafka message:");
-    console.log({
+    debugPipelineLog("Received Kafka message", {
         topic,
         partition,
         offset: message.offset,
@@ -87,8 +116,7 @@ async function processMessage({
 
     const validatedEvent = validation.data;
 
-    console.log("Decoded and validated event:");
-    console.log({
+    debugPipelineLog("Decoded and validated event", {
         eventId: validatedEvent.eventId,
         eventType: validatedEvent.eventType,
         userId: validatedEvent.userId,
@@ -101,23 +129,13 @@ async function processMessage({
         );
 
     if (result.duplicate) {
-        console.log(
-            `Duplicate event ${validatedEvent.eventId} skipped`,
-        );
+        debugPipelineLog(`Duplicate event ${validatedEvent.eventId} skipped`);
 
         return;
     }
 
-    console.log("Routing decision:");
-
-    console.dir(
-        result.routingDecision,
-        { depth: null },
-    );
-
-    console.log(
-        `Successfully processed offset ${message.offset}`,
-    );
+    debugPipelineLog("Routing decision", result.routingDecision);
+    debugPipelineLog(`Successfully processed offset ${message.offset}`);
 }
 
 
@@ -135,6 +153,11 @@ export async function startConsumer() {
 
     await consumer.run({
         autoCommit: false,
+        partitionsConsumedConcurrently: boundedPositiveInteger(
+            process.env.KAFKA_PARTITIONS_CONSUMED_CONCURRENTLY,
+            1,
+            "KAFKA_PARTITIONS_CONSUMED_CONCURRENTLY",
+        ),
 
         eachMessage: async (payload) => {
             try {
@@ -156,9 +179,7 @@ export async function startConsumer() {
                     },
                 ]);
 
-                console.log(
-                    `Committed offset ${payload.message.offset}`,
-                );
+                debugPipelineLog(`Committed offset ${payload.message.offset}`);
             } catch (error) {
                 console.error(
                     `Failed to process offset ${payload.message.offset}`,
@@ -182,6 +203,8 @@ export async function stopConsumer() {
     await consumer.disconnect();
 
     await deduplication.close();
+    await redisPool.close();
 
     await prisma.$disconnect();
+    await postgresPool.end();
 }

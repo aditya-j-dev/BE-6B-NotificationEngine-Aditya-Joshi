@@ -12,6 +12,12 @@ import {
     DeliveryAcknowledgementService,
 } from "../delivery";
 import { createDlqApiHandler, DeadLetterQueueDashboardService } from "../dlq";
+import {
+    AnalyticsApiService,
+    createAnalyticsDashboardApiHandler,
+    createPrometheusMetricsHandler,
+    PrometheusMetricsService,
+} from "../analytics";
 
 /** Creates the ZeTheta HTTP server with the currently available API routes. */
 export function createApiServer(
@@ -20,6 +26,8 @@ export function createApiServer(
     preferenceAnalytics?: PreferenceAnalytics,
     deliveryAcknowledgements?: DeliveryAcknowledgementService,
     deadLetterQueueDashboard?: DeadLetterQueueDashboardService,
+    prometheusMetrics?: PrometheusMetricsService,
+    analyticsDashboard?: AnalyticsApiService,
 ): Server {
     const preferenceHandler = createPreferenceApiHandler(
         new PreferenceService(store, preferenceCache, preferenceAnalytics),
@@ -29,6 +37,12 @@ export function createApiServer(
         : undefined;
     const dlqHandler = deadLetterQueueDashboard
         ? createDlqApiHandler(deadLetterQueueDashboard)
+        : undefined;
+    const metricsHandler = prometheusMetrics
+        ? createPrometheusMetricsHandler(prometheusMetrics)
+        : undefined;
+    const analyticsDashboardHandler = analyticsDashboard
+        ? createAnalyticsDashboardApiHandler(analyticsDashboard)
         : undefined;
 
     return createServer((request, response) => {
@@ -41,6 +55,12 @@ export function createApiServer(
             response.writeHead(404, { "content-type": "application/json; charset=utf-8" });
             response.end(JSON.stringify({ error: "NOT_FOUND" }));
             return;
+        }
+        if (pathname === "/metrics" && metricsHandler) {
+            return metricsHandler(request, response);
+        }
+        if (pathname.startsWith("/analytics/") && analyticsDashboardHandler) {
+            return analyticsDashboardHandler(request, response);
         }
 
         return preferenceHandler(request, response);
