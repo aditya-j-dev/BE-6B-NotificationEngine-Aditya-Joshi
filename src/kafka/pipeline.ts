@@ -11,6 +11,7 @@ import {
 import type {
     RoutingDecision,
 } from "../routing/types";
+import { runWithCorrelationId } from "../observability";
 
 export interface PipelineResult {
     duplicate: boolean;
@@ -30,6 +31,10 @@ export class NotificationPipeline {
     async process(
         event: FinancialEvent,
     ): Promise<PipelineResult> {
+        return runWithCorrelationId(event.correlationId, async () => this.processWithContext(event));
+    }
+
+    private async processWithContext(event: FinancialEvent): Promise<PipelineResult> {
         /*
          * Deduplicate before doing any expensive
          * downstream work.

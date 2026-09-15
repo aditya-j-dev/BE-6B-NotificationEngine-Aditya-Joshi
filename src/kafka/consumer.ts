@@ -24,6 +24,7 @@ import {
 import {
     NotificationPipeline,
 } from "./pipeline";
+import { applicationLogger, correlationId } from "../observability";
 
 function boundedPositiveInteger(value: string | undefined, fallback: number, name: string): number {
     const parsed = Number(value ?? fallback);
@@ -84,7 +85,7 @@ const consumer: Consumer = kafka.consumer({
 const verbosePipelineLogging = process.env.DEBUG_PIPELINE_LOGS === "true";
 
 function debugPipelineLog(message: string, details?: unknown): void {
-    if (verbosePipelineLogging) console.log(message, details ?? "");
+    if (verbosePipelineLogging) applicationLogger.debug({ correlationId: correlationId(), details }, message);
 }
 
 async function processMessage({
@@ -108,8 +109,7 @@ async function processMessage({
     const validation = FinancialEventSchema.safeParse(event);
 
     if (!validation.success) {
-        console.error("Invalid event payload:");
-        console.error(validation.error.format());
+        applicationLogger.error({ validationErrors: validation.error.format() }, "Invalid event payload");
 
         throw new Error("Event validation failed");
     }
@@ -181,11 +181,13 @@ export async function startConsumer() {
 
                 debugPipelineLog(`Committed offset ${payload.message.offset}`);
             } catch (error) {
-                console.error(
-                    `Failed to process offset ${payload.message.offset}`,
-                );
-
-                console.error(error);
+                applicationLogger.error({
+                    err: error,
+                    topic: payload.topic,
+                    partition: payload.partition,
+                    offset: payload.message.offset,
+                    correlationId: correlationId(),
+                }, "Failed to process Kafka offset");
 
                 /*
                  * IMPORTANT:
@@ -200,6 +202,8 @@ export async function startConsumer() {
 }
 
 export async function stopConsumer() {
+    // KafkaJS stops fetching new records and waits for active handlers before disconnecting.
+    await consumer.stop();
     await consumer.disconnect();
 
     await deduplication.close();
