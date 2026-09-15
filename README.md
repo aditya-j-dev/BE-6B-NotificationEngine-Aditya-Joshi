@@ -1,234 +1,85 @@
-# Event-Driven Notification Engine
+# ZeTheta - Event-Driven Financial Notification Engine
 
-A scalable, event-driven notification backend for financial applications.
+ZeTheta processes financial events and delivers compliant, personalised notifications through SMS, email, push, WhatsApp, and in-app channels. It supports 25+ financial event types, TRAI DND rules, consent and quiet-hours controls, frequency capping, provider failover, delivery tracking, retry and DLQ processing, and real-time analytics.
 
-The system processes 25+ financial event types such as transaction alerts,
-margin calls, SIP reminders, price alerts, and regulatory notices, and delivers
-notifications through SMS, email, push notifications, WhatsApp, and in-app channels.
+## Architecture at a glance
 
-## Project Overview
-
-This project is being built as a resilient multi-channel notification platform with:
-
-- Event-driven architecture
-- Kafka-based event ingestion and streaming
-- RabbitMQ-based delivery routing and priority queues
-- Redis-based caching, rate limiting, frequency capping, and real-time state
-- PostgreSQL as the primary persistent data store
-- Multi-channel notification delivery
-- User preference management
-- TRAI DND compliance
-- Frequency capping and quiet hours
-- Template personalisation and localisation
-- Retry strategy and Dead Letter Queue (DLQ)
-- Delivery tracking
-- Real-time analytics and observability
-
-## Technology Stack
-
-| Component | Technology | Purpose |
-|---|---|---|
-| Runtime | Node.js + TypeScript | Backend runtime |
-| API contract | OpenAPI 3.0 | Internal HTTP API contract; server implementation pending |
-| Database | PostgreSQL 15 | Primary persistent storage |
-| Cache / State | Redis 7 | Caching, rate limiting, counters |
-| Event Streaming | Apache Kafka | Event ingestion and processing |
-| Message Queue | RabbitMQ 3.12 | Delivery routing, priorities, DLQ |
-| Template Engine | Handlebars.js | Planned notification-template rendering |
-| Containerisation | Docker Compose | Local infrastructure |
-| Testing | Vitest | Unit and integration testing |
-
-## High-Level Architecture
-
-```text
-Financial Event Producers
-          |
-          v
-        Kafka
-          |
-          v
-   Event Processing
-          |
-          v
-   Policy / Qualification
-          |
-     +----+----+
-     |         |
- Critical    Normal
-     |         |
-     +----+----+
-          |
-          v
-    Routing Engine
-          |
-          v
-      RabbitMQ
-          |
-          v
-   Delivery Workers
-     /    |    \
-    /     |     \
-  SMS   Email   Push
-              WhatsApp
-              In-App
-```              
-
-Redis  ---> Cache / Rate Limiting / Frequency Caps
-PostgreSQL -> Persistent Data / Audit / Notification History
-
-## Architecture Decisions
-
-### ADR-001: Kafka as the Primary Event Bus
-
-**Decision:** Use Apache Kafka for financial event ingestion and event streaming.
-
-**Reason:**
-
-- High-throughput event processing
-- Consumer groups for horizontal scaling
-- Durable event retention
-- Event replay capability
-- Suitable for large notification bursts
-
----
-
-### ADR-002: RabbitMQ for Delivery Routing
-
-**Decision:** Use RabbitMQ for notification delivery routing.
-
-**Reason:**
-
-- Flexible routing
-- Message acknowledgements
-- Priority queues
-- Retry handling
-- Dead Letter Queue support
-
-Kafka handles event streaming, while RabbitMQ handles delivery-oriented processing.
-
----
-
-### ADR-003: Redis for Fast State
-
-**Decision:** Use Redis for frequently accessed and rapidly changing state.
-
-**Uses:**
-
-- User preference caching
-- Frequency-cap counters
-- Rate limiting
-- Deduplication
-- DND cache
-- Real-time counters
-
-PostgreSQL remains the persistent source of truth.
-
----
-
-### ADR-004: PostgreSQL for Persistent Storage
-
-**Decision:** Use PostgreSQL as the primary database.
-
-**Reason:**
-
-- Strong consistency
-- Relational data modelling
-- Transaction support
-- JSONB support
-- Suitable for notification history and audit records
-
----
-
-### ADR-005: Separate Critical and Normal Notification Processing
-
-Critical financial notifications such as margin calls must not compete with high-volume, lower-priority notifications such as price alerts.
-
-Critical events therefore use dedicated Kafka topics and consumer resources.
-
----
-
-### ADR-006: Final DND Check Before SMS Dispatch
-
-TRAI DND status must be checked as close as possible to actual SMS dispatch.
-
-This prevents a user's DND status from becoming stale while a notification is waiting in a delivery queue.
-
----
-
-### ADR-007: Asynchronous Delivery
-
-Provider calls are handled asynchronously through delivery workers rather than blocking the main event-processing pipeline.
-
-This improves scalability, fault isolation, and resilience.
-
----
-
-### ADR-008: Retry and Dead Letter Queue
-
-Failed deliveries use controlled retries with exponential backoff and jitter.
-
-Messages that cannot be processed after the configured retry limit are moved to a Dead Letter Queue for monitoring and remediation.
-
----
-
-## Project Structure
-
-```text
-src/          Application source code
-tests/        Unit and integration tests
-docs/         Architecture and project documentation
-config/       Application configuration
-scripts/      Utility and development scripts
-migrations/   Database migrations
+```mermaid
+flowchart LR
+    Producers[Financial event producers] --> Kafka[(Kafka)]
+    Kafka --> Pipeline[Validation and notification pipeline]
+    Pipeline --> Redis[(Redis: cache, caps, deduplication)]
+    Pipeline --> Postgres[(PostgreSQL: users, audit, history)]
+    Pipeline --> Router[Compliance, preferences and routing]
+    Router --> RabbitMQ[(RabbitMQ)]
+    RabbitMQ --> Providers[SMS, email, push, WhatsApp and in-app providers]
 ```
 
-## Local Development
+Read the detailed C4, sequence, and database diagrams in [ARCHITECTURE.md](ARCHITECTURE.md).
 
-### Prerequisites
+## Technology stack
 
-- Node.js
-- npm
-- Docker Desktop
-- Docker Compose
+| Concern | Technology |
+| --- | --- |
+| Runtime | Node.js 22 and TypeScript |
+| Event ingestion | Kafka and Avro |
+| Delivery queue | RabbitMQ |
+| Persistence | PostgreSQL 15 with Prisma |
+| Fast state | Redis 7 |
+| API contract | OpenAPI 3.0 and Swagger UI |
+| Testing | Vitest and k6 |
+| Local deployment | Docker Compose |
 
-### Install Dependencies
+## Local setup
 
-```bash
+Prerequisites: Node.js 22, npm, and Docker Desktop.
+
+```powershell
+Copy-Item .env.example .env
 npm install
+docker compose up -d
+npx prisma migrate deploy
+npx prisma generate
 ```
 
-## Build TypeScript
+Set real provider credentials only in `.env`; do not commit that file. For a clean local database, the optional development seed command is `npx prisma db seed`.
 
-```bash
+Verify service status:
+
+```powershell
+docker compose ps
+```
+
+## API documentation
+
+The HTTP API serves its versioned OpenAPI document at `/openapi.json` and Swagger UI at `/api-docs` when hosted by the application. The request collection is [docs/api/zetheta.postman_collection.json](docs/api/zetheta.postman_collection.json); endpoint notes are in [docs/api/README.md](docs/api/README.md).
+
+Public routes use rate limiting, request-target sanitisation, security headers, Zod validation at mutable endpoints, and Prisma typed database queries.
+
+## Development and tests
+
+```powershell
+npm run lint
+npm test
+npm run test:coverage
 npm run build
 ```
 
-## Run Lint
+Run the full isolated Docker integration suite, including PostgreSQL, Redis, and Kafka:
 
-```bash
-npm run lint
+```powershell
+docker compose -f docker-compose.test.yml up --build --abort-on-container-exit --exit-code-from test
+docker compose -f docker-compose.test.yml down -v
 ```
 
-## Format Code
+k6 scenarios live in [load-tests](load-tests/README.md).
 
-```bash
-npm run format
-```
+## Deployment
 
-### Start Infrastructure
+The production worker image uses a multi-stage Docker build, runs as the unprivileged `node` user, and was verified at 188 MB. Follow [DEPLOYMENT.md](DEPLOYMENT.md) for environment, migration, rollout, and rollback steps.
 
-```bash
-docker compose up -d
-```
+## CI and security
 
-### Stop Infrastructure
+GitHub Actions runs linting, tests, build, coverage, `npm audit`, and Gitleaks on pushes and pull requests. The current dependency-audit findings are intentionally left visible until their upstream packages can be upgraded safely; do not use `npm audit fix --force` because it proposes a breaking Prisma downgrade.
 
-```bash
-docker compose down
-```
-
-## Running Tests
-
-```bash
-npm test
-```
+See [docs/security-hardening.md](docs/security-hardening.md) for the security model and [CHANGELOG.md](CHANGELOG.md) for daily progress.
