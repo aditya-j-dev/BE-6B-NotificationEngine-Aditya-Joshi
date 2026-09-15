@@ -37,7 +37,7 @@ import {
     NotificationPipeline,
 } from "../pipeline";
 
-describe(
+describe.skipIf(process.env.RUN_INTEGRATION_TESTS !== "true")(
     "Kafka ingestion pipeline",
     () => {
         const kafka = new Kafka({
@@ -54,6 +54,7 @@ describe(
         let deduplication:
             EventDeduplicationService;
         let pipeline: NotificationPipeline;
+        let integrationUserId: string;
 
         const groupId =
             `notification-integration-${Date.now()}`;
@@ -67,6 +68,21 @@ describe(
             prisma = new PrismaClient({
                 adapter,
             });
+
+            const integrationUser =
+                await prisma.user.create({
+                    data: {
+                        phone:
+                            `+9199${Date.now()}`,
+                        email:
+                            `integration-${Date.now()}@example.com`,
+                        name:
+                            "Kafka Integration User",
+                    },
+                });
+
+            integrationUserId =
+                integrationUser.id;
 
             deduplication =
                 new EventDeduplicationService(
@@ -115,18 +131,6 @@ describe(
         it(
             "produces, consumes, deduplicates, enriches and routes an event",
             async () => {
-                const user =
-                    await prisma.user.findFirst({
-                        where: {
-                            email: {
-                                startsWith:
-                                    "testuser",
-                            },
-                        },
-                    });
-
-                expect(user).not.toBeNull();
-
                 const eventId =
                     `integration-${Date.now()}-${Math.random()}`;
 
@@ -139,7 +143,7 @@ describe(
                     eventCategory:
                         "transaction",
 
-                    userId: user!.id,
+                    userId: integrationUserId,
 
                     occurredAt:
                         new Date().toISOString(),
@@ -355,18 +359,6 @@ describe(
         it(
             "deduplicates the same eventId",
             async () => {
-                const user =
-                    await prisma.user.findFirst({
-                        where: {
-                            email: {
-                                startsWith:
-                                    "testuser",
-                            },
-                        },
-                    });
-
-                expect(user).not.toBeNull();
-
                 const eventId =
                     `duplicate-${Date.now()}-${Math.random()}`;
 
@@ -379,7 +371,7 @@ describe(
                     eventCategory:
                         "transaction",
 
-                    userId: user!.id,
+                    userId: integrationUserId,
 
                     occurredAt:
                         new Date().toISOString(),

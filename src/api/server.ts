@@ -26,6 +26,8 @@ import {
 } from "../observability";
 import type { Logger } from "pino";
 import { createApiDocumentationHandler } from "./docs";
+import { ApiRateLimiter, applyRateLimit } from "./rate-limit";
+import { applyApiSecurityHeaders, rejectUnsafeRequestTarget, validatePublicRequestTarget } from "./security";
 
 /** Creates the ZeTheta HTTP server with the currently available API routes. */
 export function createApiServer(
@@ -38,6 +40,7 @@ export function createApiServer(
     analyticsDashboard?: AnalyticsApiService,
     healthService?: HealthService,
     logger: Logger = applicationLogger,
+    rateLimiter = new ApiRateLimiter(),
 ): Server {
     const preferenceHandler = createPreferenceApiHandler(
         new PreferenceService(store, preferenceCache, preferenceAnalytics),
@@ -59,6 +62,9 @@ export function createApiServer(
 
     return createServer((request, response) => {
         observeRequest(request, response, logger, async () => {
+            applyApiSecurityHeaders(response);
+            if (!validatePublicRequestTarget(request)) return rejectUnsafeRequestTarget(response);
+            if (!applyRateLimit(request, response, rateLimiter)) return;
             const pathname = new URL(request.url ?? "/", "http://localhost").pathname;
             if (pathname === "/openapi.json" || pathname === "/api-docs" || pathname.startsWith("/api-docs/")) return documentationHandler(request, response);
             if (pathname.startsWith("/health") && healthHandler) return healthHandler(request, response);

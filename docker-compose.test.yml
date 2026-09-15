@@ -1,0 +1,63 @@
+name: zetheta-test
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: notification_user
+      POSTGRES_PASSWORD: test_password
+      POSTGRES_DB: notification_engine
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U notification_user -d notification_engine"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    tmpfs: [/var/lib/postgresql/data]
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:29093
+      KAFKA_LISTENERS: PLAINTEXT://kafka:29092,CONTROLLER://kafka:29093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic notification-events --partitions 1 --replication-factor 1 >/dev/null 2>&1 && kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists --topic notification-critical --partitions 1 --replication-factor 1 >/dev/null 2>&1 && kafka-broker-api-versions --bootstrap-server kafka:29092 >/dev/null 2>&1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+  test:
+    build:
+      context: .
+      target: build
+    command: >
+      sh -c "npx prisma migrate deploy && RUN_INTEGRATION_TESTS=true
+      npx vitest run --maxWorkers=1 --no-file-parallelism"
+    environment:
+      DATABASE_URL: postgresql://notification_user:test_password@postgres:5432/notification_engine
+      REDIS_URL: redis://redis:6379
+      KAFKA_BROKERS: kafka:29092
+      NODE_ENV: test
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      kafka: { condition: service_healthy }

@@ -1,12 +1,12 @@
 services:
 
   postgres:
-    image: postgres:15
+    image: postgres:15-alpine
     container_name: notification-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: notification_user
-      POSTGRES_PASSWORD: notification_password
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: notification_engine
     ports:
       - "15432:5432"
@@ -17,9 +17,12 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 512M }
 
   redis:
-    image: redis:7
+    image: redis:7-alpine
     container_name: notification-redis
     restart: unless-stopped
     ports:
@@ -31,6 +34,9 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits: { cpus: "0.5", memory: 256M }
 
   kafka:
     image: confluentinc/cp-kafka:7.6.1
@@ -66,14 +72,17 @@ services:
       interval: 10s
       timeout: 10s
       retries: 10
+    deploy:
+      resources:
+        limits: { cpus: "2.0", memory: 1536M }
 
   rabbitmq:
-    image: rabbitmq:3.12-management
+    image: rabbitmq:3.12-management-alpine
     container_name: notification-rabbitmq
     restart: unless-stopped
     environment:
       RABBITMQ_DEFAULT_USER: notification_user
-      RABBITMQ_DEFAULT_PASS: notification_password
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?set RABBITMQ_PASSWORD in .env}
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -84,6 +93,38 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 512M }
+
+  worker:
+    build:
+      context: .
+      target: production
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://notification_user:${POSTGRES_PASSWORD}@postgres:5432/notification_engine
+      REDIS_URL: redis://redis:6379
+      KAFKA_BROKERS: kafka:29092
+      KAFKA_GROUP_ID: notification-worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD-SHELL", "node -e 'process.kill(1, 0)'" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 512M }
 
 volumes:
   postgres_data:
